@@ -5,8 +5,8 @@
 | | |
 |---|---|
 | **Live demo** | _TBD — will be filled in after first Render deploy._ |
-| **Stack** | FastAPI · React (Vite) · Tailwind · SQLite (local) / Supabase-ready · OpenAI-compatible LLM |
-| **Status** | MVP build — runs locally end-to-end. Persistence currently SQLite; Supabase migration is a thin swap of `db.py`. |
+| **Stack** | FastAPI · React (Vite) · Tailwind · SQLite (local) / Supabase (prod) · OpenAI-compatible LLM |
+| **Status** | MVP build — runs locally end-to-end. Storage layer is swappable via `STORAGE_BACKEND`: `sqlite` for local dev, `supabase` for Render. |
 
 ---
 
@@ -135,7 +135,10 @@ npm run dev                    # http://127.0.0.1:5173
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Point at any OpenAI-compatible endpoint |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model id understood by the endpoint above |
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated whitelist of frontend origins |
-| `DATABASE_URL` | `sqlite:///./stocksight.db` | Only SQLite is wired today |
+| `STORAGE_BACKEND` | `sqlite` | `sqlite` for local dev, `supabase` for Render / prod |
+| `DATABASE_URL` | `sqlite:///./stocksight.db` | Only consulted when `STORAGE_BACKEND=sqlite` |
+| `SUPABASE_URL` | _empty_ | Required when `STORAGE_BACKEND=supabase`. Form: `https://xxx.supabase.co` |
+| `SUPABASE_SERVICE_KEY` | _empty_ | **service_role** key. **Never** the publishable / anon key — it can't bypass RLS |
 | `QUOTE_CACHE_TTL` | `30` | Seconds; prevents hammering yfinance |
 | `STOCK_DATA_PROVIDER` | `yfinance` | Set to `mock` to force deterministic demo data |
 
@@ -149,17 +152,52 @@ The Supabase service key, when added, lives only in `backend/.env` and never cro
 
 ---
 
-## 5. Render deployment
+## 5. Supabase setup (production persistence)
 
-Two services from one repo:
+Render's filesystem is ephemeral on the free tier, so SQLite resets on every redeploy. Production uses Supabase instead.
 
-### Backend — Web Service
+1. Create a project at [supabase.com](https://supabase.com).
+2. Dashboard → **SQL editor** → New query → paste the contents of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) → Run. This creates `stock_analyses` with the `sentiment` CHECK constraint, the `(symbol, created_at DESC)` index, and enables RLS with no public policies (PRD §10.6 — service_role bypasses RLS, anon gets nothing).
+3. Dashboard → **Settings → API**. Copy:
+   - **Project URL** → `SUPABASE_URL`
+   - **`service_role` key** → `SUPABASE_SERVICE_KEY` (**not** the `anon` / `publishable` key — it can't write under the locked-down RLS)
+4. In `backend/.env` set `STORAGE_BACKEND=supabase` along with the two values above. The backend now writes there instead of `stocksight.db`.
+
+To verify locally:
+
+```bash
+STORAGE_BACKEND=supabase SUPABASE_URL=... SUPABASE_SERVICE_KEY=... \
+  .venv/bin/uvicorn main:app --port 8000
+# Logs should show: "Using Supabase storage backend"
+```
+
+If the URL or key is wrong, `init_db` runs a zero-row select at startup and the process fails fast with `RuntimeError: Supabase connectivity check failed: ...` — much better than a silent first-request crash.
+
+---
+
+## 6. Render deployment
+
+### Option A — Blueprint (recommended)
+
+The repo includes a [`render.yaml`](render.yaml) that defines both services with Supabase-first defaults:
+
+1. Push to GitHub.
+2. In Render: **New → Blueprint → connect this repo**.
+3. Render reads `render.yaml`, creates `stocksight-backend` (FastAPI) and `stocksight-frontend` (static), and prompts for the two `sync: false` values:
+   - `OPENAI_API_KEY`
+   - `SUPABASE_SERVICE_KEY`
+4. The first deploy uses the predicted hosts `stocksight-backend.onrender.com` and `stocksight-frontend.onrender.com` already baked into `CORS_ORIGINS` and `VITE_API_BASE`. If you rename either service, update those two vars.
+
+### Option B — Manual two-service setup
+
+#### Backend — Web Service
 - **Root Directory**: `backend`
 - **Build Command**: `pip install -r requirements.txt`
 - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- **Env vars**: all of the table above, with `CORS_ORIGINS` pointing at the deployed frontend URL.
+- **Health check path**: `/api/health`
+- **Env vars**: everything in the table above, with `STORAGE_BACKEND=supabase`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and `CORS_ORIGINS` pointing at the deployed frontend.
 
-### Frontend — Static Site
+#### Frontend — Static Site
 - **Root Directory**: `frontend`
 - **Build Command**: `npm install && npm run build`
 - **Publish Directory**: `dist`
@@ -169,7 +207,7 @@ Render's free tier sleeps after inactivity; the first request after a cold start
 
 ---
 
-## 6. Debug log (real incident)
+## 7. Debug log (real incident)
 
 > **Issue**: From the Azure dev VM, every `yfinance` call returned `429 Too Many Requests` from `query2.finance.yahoo.com`. The unwrapped `fast_info["last_price"]` raised, and `/api/quote?symbol=AAPL` returned `502 "Failed to fetch quote, please try again."`. Re-runs (different symbol, `history()`, longer waits) all hit the same wall — Yahoo had IP-banned the entire Azure subnet, not just throttled the request rate.
 
@@ -208,31 +246,35 @@ This satisfies PRD §10.10 "上游服务故障 → 友好降级页面": the user
 
 ---
 
-## 7. Layout
+## 8. Layout
 
 ```
 StockSight/
 ├── CLAUDE.md           # architectural contracts for Claude Code sessions
 ├── PRD.md              # full product spec including security & risk
 ├── README.md
+├── render.yaml         # one-shot Render Blueprint (backend + frontend)
 ├── backend/
 │   ├── main.py         # FastAPI app, CORS, security headers, routes
-│   ├── config.py       # pydantic-settings, env loader
+│   ├── config.py       # pydantic-settings, env loader, storage_backend switch
 │   ├── schemas.py      # Pydantic models + symbol regex
 │   ├── quote.py        # yfinance + mock fallback + cache
 │   ├── analyze.py      # System prompt, OpenAI-compatible client, JSON validation
-│   ├── db.py           # SQLite, CHECK-constrained stock_analyses table
+│   ├── db.py           # Dispatches between SQLite (local) and Supabase (prod)
 │   ├── requirements.txt
 │   └── .env.example
-└── frontend/
-    ├── index.html      # Fraunces + Inter Tight + JetBrains Mono
-    ├── vite.config.js
-    ├── tailwind.config.js
-    ├── postcss.config.js
-    └── src/
-        ├── main.jsx
-        ├── App.jsx
-        ├── api.js      # single typed wrapper around fetch
-        ├── components/
-        └── utils/
+├── frontend/
+│   ├── index.html      # Fraunces + Inter Tight + JetBrains Mono
+│   ├── vite.config.js
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   └── src/
+│       ├── main.jsx
+│       ├── App.jsx
+│       ├── api.js      # single typed wrapper around fetch
+│       ├── components/
+│       └── utils/
+└── supabase/
+    └── migrations/
+        └── 0001_init.sql   # stock_analyses + sentiment CHECK + RLS enabled
 ```
