@@ -1,4 +1,22 @@
+# Render Blueprint for StockSight AI.
+#
+# Production defaults:
+#   - Persistence is Supabase, because Render's free tier has an ephemeral
+#     filesystem and a sqlite file would be wiped on every restart / redeploy.
+#   - Quote source is yfinance, with the deterministic mock fallback already
+#     built into backend/quote.py for when Yahoo rate-limits the Render IP.
+#
+# After first deploy you only need to:
+#   1. Paste SUPABASE_SERVICE_KEY and OPENAI_API_KEY (both sync: false).
+#   2. Once Render assigns real URLs, update CORS_ORIGINS (backend) and
+#      VITE_API_BASE (frontend) to match — or rename the services to keep
+#      the predicted *.onrender.com hosts.
+#
+# Re-runnable: `render blueprint sync` is idempotent on env-var values that
+# are unchanged.
+
 services:
+  # ─── Backend: FastAPI web service ────────────────────────────────────────
   - type: web
     name: stocksight-backend
     runtime: python
@@ -6,25 +24,38 @@ services:
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.3
+
+      # ── LLM ────────────────────────────────────────────────────────────
       - key: OPENAI_API_KEY
-        sync: false
+        sync: false                          # filled in by you at deploy time
       - key: OPENAI_BASE_URL
-        value: https://api.openai.com/v1
+        value: https://api.openai.com/v1     # change for DeepSeek / Moonshot / etc.
       - key: OPENAI_MODEL
         value: gpt-4o-mini
+
+      # ── CORS: must match the deployed frontend origin ──────────────────
       - key: CORS_ORIGINS
-        # update to the frontend URL after first deploy
         value: https://stocksight-frontend.onrender.com
-      - key: DATABASE_URL
-        value: sqlite:////tmp/stocksight.db
-      - key: QUOTE_CACHE_TTL
-        value: "30"
+
+      # ── Storage: Supabase (Render filesystem is ephemeral) ─────────────
+      - key: STORAGE_BACKEND
+        value: supabase
+      - key: SUPABASE_URL
+        value: https://qekpdyngtotsvjvftyag.supabase.co
+      - key: SUPABASE_SERVICE_KEY
+        sync: false                          # service_role key — NEVER the anon key
+
+      # ── Quote provider ─────────────────────────────────────────────────
       - key: STOCK_DATA_PROVIDER
         value: yfinance
+      - key: QUOTE_CACHE_TTL
+        value: "30"
 
+  # ─── Frontend: static site (Vite build → dist/) ──────────────────────────
   - type: web
     name: stocksight-frontend
     runtime: static
@@ -33,9 +64,18 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_BASE
-        # update to the backend URL after first deploy
         value: https://stocksight-backend.onrender.com
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
