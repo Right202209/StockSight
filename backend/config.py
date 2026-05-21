@@ -19,6 +19,15 @@ class Settings(BaseSettings):
     # "mock" → always return deterministic mock data (offline demo).
     stock_data_provider: str = "yfinance"
 
+    # "sqlite" (default) or "supabase"
+    storage_backend: str = "sqlite"
+
+    # Supabase — only required when storage_backend == "supabase".
+    # The service_role key (NOT the publishable / anon key) belongs here so
+    # the backend can bypass RLS per PRD §10.6.
+    supabase_url: str = ""
+    supabase_service_key: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
