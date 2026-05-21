@@ -1,19 +1,26 @@
 # Render Blueprint for StockSight AI.
 #
 # Production defaults:
-#   - Persistence is Supabase, because Render's free tier has an ephemeral
-#     filesystem and a sqlite file would be wiped on every restart / redeploy.
+#   - Persistence is Supabase, because Render's free-tier filesystem is
+#     ephemeral and a sqlite file would be wiped on every restart / redeploy.
 #   - Quote source is yfinance, with the deterministic mock fallback already
 #     built into backend/quote.py for when Yahoo rate-limits the Render IP.
 #
 # After first deploy you only need to:
-#   1. Paste SUPABASE_SERVICE_KEY and OPENAI_API_KEY (both sync: false).
-#   2. Once Render assigns real URLs, update CORS_ORIGINS (backend) and
-#      VITE_API_BASE (frontend) to match — or rename the services to keep
-#      the predicted *.onrender.com hosts.
+#   1. Paste SUPABASE_SERVICE_KEY and OPENAI_API_KEY (both sync: false) in
+#      the Render dashboard when prompted.
+#   2. The blueprint bakes in the predicted *.onrender.com hostnames
+#      (stocksight-backend / stocksight-frontend). Rename either service
+#      and you must update CORS_ORIGINS (backend) and VITE_API_BASE
+#      (frontend) to match.
 #
-# Re-runnable: `render blueprint sync` is idempotent on env-var values that
-# are unchanged.
+# `render blueprint sync` is idempotent on env-var values that are unchanged.
+
+# Disable Render's PR-preview environments. On the free tier each preview
+# eats from the same monthly quota as production and risks racing on the
+# same Supabase rows.
+previews:
+  generation: off
 
 services:
   # ─── Backend: FastAPI web service ────────────────────────────────────────
@@ -22,22 +29,27 @@ services:
     runtime: python
     plan: free
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    region: oregon                            # match to the Supabase region for lower latency
+    branch: main
+    autoDeploy: true
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --no-access-log
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.3
+      - key: PIP_DISABLE_PIP_VERSION_CHECK
+        value: "1"
 
       # ── LLM ────────────────────────────────────────────────────────────
       - key: OPENAI_API_KEY
         sync: false                          # filled in by you at deploy time
       - key: OPENAI_BASE_URL
-        value: https://api.openai.com/v1     # change for DeepSeek / Moonshot / etc.
+        value: https://api.openai.com/v1     # swap for DeepSeek / Moonshot / vLLM / etc.
       - key: OPENAI_MODEL
         value: gpt-4o-mini
 
-      # ── CORS: must match the deployed frontend origin ──────────────────
+      # ── CORS: must match the deployed frontend origin exactly ──────────
       - key: CORS_ORIGINS
         value: https://stocksight-frontend.onrender.com
 
@@ -47,9 +59,11 @@ services:
       - key: SUPABASE_URL
         value: https://qekpdyngtotsvjvftyag.supabase.co
       - key: SUPABASE_SERVICE_KEY
-        sync: false                          # service_role key — NEVER the anon key
+        sync: false                          # service_role key — NEVER the anon / publishable key
 
       # ── Quote provider ─────────────────────────────────────────────────
+      # yfinance is preferred; backend silently falls back to deterministic
+      # mock data if Yahoo IP-bans the Render egress range.
       - key: STOCK_DATA_PROVIDER
         value: yfinance
       - key: QUOTE_CACHE_TTL
@@ -60,16 +74,37 @@ services:
     name: stocksight-frontend
     runtime: static
     rootDir: frontend
-    buildCommand: npm install && npm run build
+    branch: main
+    autoDeploy: true
+    # NODE_VERSION pin guards against Render auto-bumping to a major that
+    # Vite hasn't validated yet.
+    buildCommand: npm install --no-audit --no-fund && npm run build
     staticPublishPath: dist
     envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
       - key: VITE_API_BASE
         value: https://stocksight-backend.onrender.com
+
+    # SPA fallback: any unmatched path serves index.html so client-side
+    # routes (if added later) don't 404 from Render's static layer.
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
+
     headers:
+      # Vite emits content-hashed filenames under /assets/, so cache them
+      # aggressively. The HTML shell must NOT be cached — it's how the
+      # browser learns about new asset hashes after a deploy.
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache, must-revalidate
+      # Security headers mirror backend middleware (PRD §10.5) so the SPA
+      # shell is hardened even before the JS bundle loads.
       - path: /*
         name: X-Content-Type-Options
         value: nosniff
@@ -79,3 +114,6 @@ services:
       - path: /*
         name: Referrer-Policy
         value: no-referrer
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=()
