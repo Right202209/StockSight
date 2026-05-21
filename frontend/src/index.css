@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --grain-opacity: 0.045;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply font-sans text-ink-500 bg-paper-100;
+    font-feature-settings: 'ss01' 1, 'cv11' 1;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 0% 0%, rgba(166, 128, 44, 0.05) 0, transparent 45%),
+      radial-gradient(circle at 100% 100%, rgba(122, 31, 31, 0.04) 0, transparent 40%);
+    background-attachment: fixed;
+  }
+
+  body.dark {
+    @apply bg-ink-600 text-ink-50;
+    background-image:
+      radial-gradient(circle at 0% 0%, rgba(193, 158, 71, 0.07) 0, transparent 45%),
+      radial-gradient(circle at 100% 100%, rgba(168, 65, 61, 0.06) 0, transparent 40%);
+  }
+
+  /* Subtle paper grain — gives the cream background tactile depth */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.4 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    opacity: var(--grain-opacity);
+    mix-blend-mode: multiply;
+  }
+
+  body.dark::before {
+    mix-blend-mode: screen;
+    opacity: 0.04;
+  }
+
+  ::selection {
+    @apply bg-gold-500/30 text-ink-500;
+  }
+  body.dark ::selection {
+    @apply bg-gold-400/30 text-ink-50;
+  }
+}
+
+@layer components {
+  .num {
+    @apply font-mono;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .rule {
+    @apply border-ink-500/15 dark:border-ink-50/15;
+  }
+
+  .display-italic {
+    @apply font-display italic;
+    font-feature-settings: 'liga' 1, 'dlig' 1;
+  }
+
+  .label-eyebrow {
+    @apply font-sans uppercase tracking-[0.18em] text-[10px] font-medium text-ink-300 dark:text-ink-100;
+  }
+
+  /* Vertical accent rule used like a section marker in editorial layouts */
+  .marker {
+    @apply relative pl-4;
+  }
+  .marker::before {
+    content: '';
+    @apply absolute left-0 top-1 bottom-1 w-[3px] bg-ink-500 dark:bg-ink-50;
+  }
+
+  .focus-ring {
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-500/40 dark:focus-visible:ring-ink-50/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-100 dark:focus-visible:ring-offset-ink-600;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-3 bg-ink-500 dark:bg-ink-50 text-paper-100 dark:text-ink-600 font-medium tracking-tight rounded-none transition-all duration-200 hover:bg-ink-400 dark:hover:bg-paper-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed focus-ring;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 border border-ink-500/20 dark:border-ink-50/25 text-ink-500 dark:text-ink-50 font-medium tracking-tight rounded-none transition-colors duration-200 hover:bg-ink-500/5 dark:hover:bg-ink-50/10 disabled:opacity-40 disabled:cursor-not-allowed focus-ring;
+  }
+
+  .card {
+    @apply relative bg-paper-50 dark:bg-ink-500/40 border border-ink-500/10 dark:border-ink-50/10 backdrop-blur-[2px];
+  }
+}
+
+/* Spinner ring */
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Number flip-in: scales the digit slightly when freshly arrived */
+.num-fresh {
+  animation: num-arrive 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes num-arrive {
+  0% { transform: translateY(6px); opacity: 0; letter-spacing: -0.02em; }
+  100% { transform: translateY(0); opacity: 1; letter-spacing: -0.04em; }
+}
+
+/* Ensure z-index ordering keeps grain behind content */
+#root { position: relative; z-index: 2; }
