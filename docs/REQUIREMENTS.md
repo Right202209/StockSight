@@ -65,4 +65,4 @@ The current Vite 5 / Tailwind 3 line is intentional. Moving to newer major versi
 - Define log retention/redaction policy for raw malformed model responses.
 - Verify and publish the production URL; the hostnames in `render.yaml` are deployment defaults, not proof that a service is live.
 
-See `PRD.md` for the original product brief and `README.md` for setup, API, and deployment instructions.
+See [`PRD.md`](PRD.md) for the original product brief. Setup, API, and deployment instructions are maintained in the dedicated documents under this directory and linked from [`../README.md`](../README.md).

@@ -71,6 +71,6 @@ The DB-level CHECK on `sentiment` is intentional — it's the third line of defe
 
 Quote-API key, OpenAI key, and Supabase URL/service key all live in environment variables (Render env vars in production, `.env` locally — git-ignored). Never inline them, never ship them to the frontend bundle. The Supabase service key in particular must stay server-side.
 
-## README deliverable
+## Documentation deliverable
 
-The PRD requires the final `README.md` to include: (1) the live Render URL, (2) the system prompt + user-message template (code or screenshot), and (3) a debug-log entry showing a real issue encountered during build/deploy and how it was resolved. Treat these as shipping requirements, not nice-to-haves.
+The root `README.md` is intentionally concise. Detailed API, configuration, architecture, deployment, prompt, security, and troubleshooting material belongs under `docs/`; keep those pages synchronized with behavior changes. A verified Render URL, prompt contract, and deployment debug record are documented there when available.

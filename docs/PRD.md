@@ -257,9 +257,9 @@ except (json.JSONDecodeError, ValidationError) as e:
 
 ## 11. 交付物（README 必含）
 
-1. **在线访问 URL**：部署后 Render 生成并验证的地址；当前仓库只提供 Blueprint 默认主机名。
-2. **Prompt 截图或代码**：System Prompt + User Message 模板。
-3. **Debug 记录示例**：构建/部署中至少一处真实问题及其修复过程（例如 CORS、Render 环境变量、LLM JSON 解析失败等），附日志或代码 diff。
+1. **在线访问 URL**：部署后 Render 生成并验证的地址；当前仓库只提供 Blueprint 默认主机名，状态记录在 `docs/DEPLOYMENT.md`。
+2. **Prompt 截图或代码**：System Prompt + User Message 模板，维护在 `docs/PROMPT.md`。
+3. **Debug 记录示例**：构建/部署中至少一处真实问题及其修复过程，维护在 `docs/TROUBLESHOOTING.md`。
 
 ## 12. 里程碑（建议）
 
