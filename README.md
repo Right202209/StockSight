@@ -1,5 +1,7 @@
 # StockSight AI
 
+English | [简体中文](../README.zh-CN.md)
+
 An editorial dashboard for the latest available US equity quotes and concise, structured AI commentary.
 
 > MVP for information only. Quotes may be delayed, Yahoo Finance may be unavailable, and AI output may be wrong. This is not financial advice.
@@ -49,7 +51,6 @@ curl 'http://localhost:8000/api/quote?symbol=AAPL'
 ## Documentation
 
 - [Documentation index](docs/README.md)
-- [简体中文说明](docs/README.zh-CN.md)
 - [API reference](docs/API.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Architecture](docs/ARCHITECTURE.md)
