@@ -1,6 +1,6 @@
 # StockSight AI
 
-English | [简体中文](../README.zh-CN.md)
+English | [简体中文](README.zh-CN.md)
 
 An editorial dashboard for the latest available US equity quotes and concise, structured AI commentary.
 
