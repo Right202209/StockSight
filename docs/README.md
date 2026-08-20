@@ -12,6 +12,18 @@ This directory contains the detailed, versioned documentation for StockSight AI.
 - [Security and limitations](SECURITY.md): implemented controls and release blockers.
 - [Troubleshooting](TROUBLESHOOTING.md): common startup, provider, model, and deployment failures.
 
+## Community and Policies
+
+Project-wide policies live in the repository root so GitHub can discover them:
+
+- [Contributing guide](../CONTRIBUTING.md)
+- [Code of Conduct](../CODE_OF_CONDUCT.md)
+- [Security policy](../SECURITY.md) for vulnerability reports
+- [Support](../SUPPORT.md)
+
+[`docs/SECURITY.md`](SECURITY.md) remains the product's implementation-level
+security and limitations reference.
+
 ## Product and Requirements
 
 - [Product requirements](PRD.md): product brief, user stories, data flow, risks, and milestones.

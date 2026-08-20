@@ -61,6 +61,13 @@ curl 'http://localhost:8000/api/quote?symbol=AAPL'
 - [Product requirements](docs/PRD.md)
 - [Implementation requirements](docs/REQUIREMENTS.md)
 
+Community and project policies:
+
+- [Contributing guide](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security policy](SECURITY.md)
+- [Support](SUPPORT.md)
+
 ## Current Scope
 
 The MVP intentionally does not provide authentication, user-scoped history, rate limiting, request-size limits, server-side quote revalidation, automated tests, linting, or CI. Review [Security and limitations](docs/SECURITY.md) before any public multi-user deployment.
@@ -69,4 +76,4 @@ There is no verified production URL in the repository yet. `render.yaml` contain
 
 ## License
 
-No license has been selected for this repository yet.
+StockSight AI is released under the [MIT License](LICENSE).

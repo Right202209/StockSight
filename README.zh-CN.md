@@ -37,3 +37,11 @@ npm run dev
 - [Render/Supabase 部署](docs/DEPLOYMENT.md)
 - [安全性与限制](docs/SECURITY.md)
 - [故障排查](docs/TROUBLESHOOTING.md)
+- [贡献指南](CONTRIBUTING.md)
+- [行为准则](CODE_OF_CONDUCT.md)
+- [安全策略](SECURITY.md)
+- [支持说明](SUPPORT.md)
+
+## 许可证
+
+StockSight AI 采用 [MIT License](LICENSE) 发布。

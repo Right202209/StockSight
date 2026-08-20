@@ -49,6 +49,18 @@ Browser (React/Vite)
 
 请参阅 [文档索引](README.md) 和 [REQUIREMENTS.md](REQUIREMENTS.md)，了解实现矩阵和计划中的加固工作。
 
+## 社区与项目策略
+
+以下项目级文档位于仓库根目录，GitHub 可以自动识别：
+
+- [贡献指南](../CONTRIBUTING.md)
+- [行为准则](../CODE_OF_CONDUCT.md)
+- [安全策略](../SECURITY.md)：用于报告漏洞
+- [支持说明](../SUPPORT.md)
+- [MIT 许可证](../LICENSE)
+
+本目录中的 [SECURITY.md](SECURITY.md) 仍然用于说明产品已实现的安全控制和当前限制；根目录的 `SECURITY.md` 用于漏洞报告。
+
 你需要：
 
 - Python 3.12（Render 固定使用 3.12.3）。
@@ -344,6 +356,11 @@ StockSight/
 ├── PRD.md                       # original product brief
 ├── README.md
 ├── README.zh-CN.md              # 简体中文文档
+├── LICENSE                      # MIT 许可证
+├── CODE_OF_CONDUCT.md           # 行为准则
+├── CONTRIBUTING.md              # 贡献指南
+├── SECURITY.md                  # 漏洞报告策略
+├── SUPPORT.md                   # 支持说明
 ├── render.yaml                  # Render Blueprint for backend + frontend
 ├── backend/
 │   ├── main.py                  # FastAPI app, routes, CORS, headers
@@ -374,4 +391,4 @@ npm ci
 npm run build
 ```
 
-仓库目前还没有许可证文件或自动化测试套件。
+仓库目前还没有自动化测试套件；许可证已采用 [MIT License](../LICENSE)。
