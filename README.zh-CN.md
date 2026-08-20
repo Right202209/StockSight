@@ -1,4 +1,5 @@
 # StockSight AI
+[English](README.md) | 简体中文
 
 StockSight AI 是一个美股行情与 AI 解读看板：输入股票代码，查看最新可用行情，再生成结构化的情绪和风险摘要。
 
