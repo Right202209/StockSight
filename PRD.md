@@ -1,12 +1,30 @@
 # StockSight AI — 产品需求文档（PRD）
 
+## 0. 当前实现基线（2026-08）
+
+本文档同时记录产品目标与当前 MVP 的交付边界。除非标注为“计划”，下表是仓库中已经实现并可按 README 运行的行为。
+
+| 范围 | 状态 | 当前基线 |
+|---|---|---|
+| 前端 | ✅ 已实现 | React 18 + Vite 5 + Tailwind CSS 3，响应式单页界面 |
+| 后端 | ✅ 已实现 | Python 3.12 + FastAPI，`/api/health`、`/api/quote`、`/api/analyze`、`/api/history` |
+| 行情 | ✅ 已实现 | `yfinance` + 30 秒进程内缓存；上游失败时使用确定性 mock，并返回来源标记 |
+| AI 分析 | ✅ 已实现 | OpenAI-compatible Chat Completions，JSON mode，`json.loads` + Pydantic 校验 |
+| 存储 | ✅ 已实现 | 本地 SQLite；生产通过 `STORAGE_BACKEND=supabase` 使用 Supabase |
+| 部署 | ✅ 已实现 | `render.yaml` 提供 FastAPI Web Service + Vite 静态站点 Blueprint |
+| 认证、用户隔离、限流、请求体大小限制 | 🗺 计划 | 当前 MVP 未实现，公开部署前必须补齐或明确接受风险 |
+| 自动化测试、Lint、CI、依赖漏洞扫描 | 🗺 计划 | 当前仓库没有对应脚本或流水线 |
+| 在线访问地址 | ⚠️ 待验证 | Blueprint 中的 `*.onrender.com` 是默认主机名，不代表已经在线 |
+
+产品目标中的“实时行情”在实现中应理解为“上游返回的最新可用行情”；免费数据源可能延迟，且可能被替换为 Demo Data。
+
 ## 1. 项目概述
 
-**StockSight AI** 是一个 AI 驱动的实时股票行情分析看板。用户输入美股代码即可查看实时行情，并通过一键触发 LLM 分析，获取 JSON 格式的市场情绪、总结与风险评估。所有数据持久化至 Supabase，应用托管在 Render.com。
+**StockSight AI** 是一个 AI 驱动的美股行情分析看板。用户输入股票代码即可查看最新可用行情，并通过一键触发 LLM 分析，获取结构化的市场情绪、总结与风险评估。分析记录本地默认持久化到 SQLite，生产环境可切换到 Supabase；应用可通过 Render Blueprint 部署。
 
 - **目标用户**：希望快速获取行情与 AI 解读的散户投资者
 - **核心价值**：把"查行情 → 看解读"压缩到两次点击
-- **交付形态**：单页 Web 应用 + 后端 API + Supabase 存储
+- **交付形态**：单页 Web 应用 + 后端 API + SQLite/Supabase 存储适配器
 
 ## 2. 用户故事
 
@@ -20,9 +38,9 @@
 
 | 模块 | 功能 | 输入 | 输出 |
 |------|------|------|------|
-| **数据获取** | 调用免费 API 获取实时行情 | 股票代码 | 最新价、涨跌额、涨跌幅、成交量等 |
+| **数据获取** | 调用 `yfinance` 获取最新可用行情，失败时降级到确定性 mock | 股票代码 | 最新价、涨跌额、涨跌幅、成交量、来源等 |
 | **AI 分析** | 调用 LLM 分析行情，强制 JSON 输出 | 格式化后的行情数据 | JSON：`summary`、`sentiment`、`risk_level` |
-| **数据存储** | 将原始行情 + 分析结果存入 Supabase | symbol、行情 JSON、分析 JSON | 数据库记录 |
+| **数据存储** | 将原始行情 + 分析结果写入 SQLite 或 Supabase | symbol、行情 JSON、分析 JSON | 数据库记录 |
 | **展示交互** | 前端展示行情、分析结果，提供操作按钮 | 用户点击 | UI 更新 |
 
 ## 4. 数据流
@@ -52,7 +70,8 @@
    │   解析 + 校验 JSON
    │       │
    │       ▼
-   ├─► Supabase: INSERT stock_analyses
+   ├─► STORAGE_BACKEND=sqlite: INSERT stock_analyses
+   └─► STORAGE_BACKEND=supabase: INSERT stock_analyses
    │
    ▼
 [前端] 渲染分析卡片
@@ -65,15 +84,15 @@
 | 层 | 技术 | 说明 |
 |----|------|------|
 | 前端 | React (Vite) + Tailwind | 快速构建、易部署 |
-| 后端 | Python FastAPI 或 Node.js Express | 调用股票 API + LLM，写入 Supabase |
-| LLM | OpenAI `gpt-4o-mini` | 成本低，配合 `response_format={"type":"json_object"}` |
-| 行情源 | Alpha Vantage / Twelve Data / yfinance | 免费额度优先，受限时切换 |
-| 数据库 | Supabase (PostgreSQL) | 免费额度足够 MVP |
-| 部署 | Render.com | GitHub 自动部署 |
+| 后端 | Python FastAPI | 服务端调用行情 API + LLM，并写入存储适配器 |
+| LLM | OpenAI-compatible Chat Completions（默认 `gpt-4o-mini`） | 配合 `response_format={"type":"json_object"}` |
+| 行情源 | `yfinance` + deterministic mock fallback | 30 秒进程内缓存，UI 展示来源 |
+| 数据库 | SQLite（本地）/ Supabase (PostgreSQL)（生产） | 由 `STORAGE_BACKEND` 切换 |
+| 部署 | Render Blueprint | FastAPI Web Service + Vite 静态站点 |
 
 ## 6. 非功能需求
 
-- **JSON 强约束**：必须通过 Prompt + API 参数双重保障，保证 LLM 只输出合法 JSON。
+- **JSON 强约束**：通过 Prompt + API 参数 + `json.loads` + Pydantic 校验保障；当前模型会忽略未知额外 key，严格拒绝额外 key 为后续加固项。
 - **机密管理**：所有 API Key（OpenAI、行情源、Supabase service key）只放在后端环境变量，绝不进入前端打包产物。
 - **CORS**：后端需正确配置允许前端域名的跨域访问。
 - **可观测性**：LLM 解析失败时，记录原始响应用于排查。
@@ -92,7 +111,7 @@
 | `risk_level` | `text` | 例如 `'Low' \| 'Medium' \| 'High'` |
 | `created_at` | `timestamp` | 默认 `now()` |
 
-> `sentiment` 的 DB-level CHECK 与后端校验、Prompt 约束构成"三道防线"，缺一不可。
+> `sentiment` 的 DB-level CHECK 与后端校验、Prompt/API 约束构成多道防线，缺一不可。
 
 ## 8. Prompt 工程
 
@@ -144,19 +163,20 @@ response = client.chat.completions.create(
 ### 8.4 后端解析 + 容错
 
 ```python
+import json
+from pydantic import ValidationError
+from schemas import AnalysisResult
+
 try:
-    ai_json = json.loads(response.choices[0].message.content)
-    required_keys = {"summary", "sentiment", "risk_level"}
-    if not required_keys.issubset(ai_json.keys()):
-        raise ValueError("Missing required fields")
-    if ai_json["sentiment"] not in {"Bullish", "Neutral", "Bearish"}:
-        raise ValueError("Invalid sentiment value")
-except (json.JSONDecodeError, ValueError) as e:
-    print(f"LLM response parsing error: {e}\nRaw: {response.choices[0].message.content}")
+    raw = response.choices[0].message.content or ""
+    ai_json = json.loads(raw)
+    result = AnalysisResult.model_validate(ai_json)
+except (json.JSONDecodeError, ValidationError) as e:
+    print(f"LLM response parsing error: {e}\nRaw: {raw}")
     return {"error": "AI analysis failed. Please try again."}
 ```
 
-**重要**：校验失败时不得写库，只返回友好错误。
+**重要**：校验失败时不得写库，只返回友好错误。当前实现使用 `AnalysisResult.model_validate()` 完成这一步；未知额外 key 会被 Pydantic 默认忽略，若产品要求严格的三 key 集合，应将模型配置为拒绝额外字段。
 
 ## 9. API 设计
 
@@ -185,18 +205,18 @@ except (json.JSONDecodeError, ValueError) as e:
 - 提交前用 `git-secrets` 或同类工具扫描，防止误提交。
 
 ### 10.2 输入校验
-- `symbol` 必须正则校验（如 `^[A-Z]{1,5}$`），拒绝任何非预期字符；防止经由 symbol 触发上游 API 的异常路径或 Prompt 注入。
-- `/api/analyze` 收到的 `quote_data` 必须按白名单字段提取，不要把任意前端 JSON 原样拼入 Prompt。
-- 所有请求体设置大小上限，避免巨型 payload 拖垮后端或喂给 LLM。
+- `symbol` 必须正则校验（`^[A-Z]{1,5}(\.[A-Z]{1,2})?$`），拒绝任何非预期字符；防止经由 symbol 触发上游 API 的异常路径或 Prompt 注入。
+- `/api/analyze` 当前按 Pydantic 模型提取字段，不把任意 JSON 原样拼入 Prompt；字段长度/字符过滤与服务端重新获取行情为**计划中的加固项**。
+- 请求体大小限制为**计划中的加固项**，当前版本尚未实现。
 
 ### 10.3 Prompt 注入与 LLM 输出风险
-- 拼装 User Message 时使用 **字段级模板** 而非整段 JSON 拼接；行情字段值需做长度上限与字符过滤，避免攻击者在 quote_data 中塞入 `"Ignore previous instructions"` 之类指令。
-- LLM 响应已有三道防线（System Prompt 约束 + `response_format` + 后端校验 + DB CHECK），任何一道告警都不得入库。
+- 拼装 User Message 时使用 **字段级模板** 而非整段 JSON 拼接；行情字段值的严格长度/字符过滤仍是**计划中的加固项**。
+- LLM 响应已有多道防线（System Prompt 约束 + `response_format` + 后端校验 + DB CHECK），任何一道告警都不得入库。
 - LLM 可能**幻觉**：必须在前端展示「AI 分析仅供参考、非投资建议」的免责声明（见 10.7）。
 
 ### 10.4 限流与成本控制
-- 后端按 IP 对 `/api/analyze` 限流（如每分钟 ≤ N 次），防止恶意请求把 LLM 账单打爆。
-- 在 OpenAI 后台设置 **月度硬上限（hard limit）**，超出自动停服而非继续计费。
+- 后端按 IP/用户对 `/api/analyze` 限流（计划；当前 MVP 未实现），防止恶意请求把 LLM 账单打爆。
+- 在 OpenAI/模型供应商后台设置 **月度硬上限（hard limit）**（运维必做；应用本身当前未实现费用闸门）。
 - 行情 API 也按免费额度做短时缓存（同一 symbol 在 N 秒内复用结果），降低被限流风险。
 
 ### 10.5 网络与传输
@@ -205,7 +225,7 @@ except (json.JSONDecodeError, ValueError) as e:
 - 建议响应头加 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: no-referrer`。
 
 ### 10.6 数据库
-- 启用 Supabase **Row Level Security**；`stock_analyses` 默认拒绝公开读写，所有读写经后端 service key。
+- 启用 Supabase **Row Level Security**；`stock_analyses` 默认拒绝 Supabase 公开读写，后端通过 service key 访问。当前后端 `/api/history` 未认证且未按用户隔离，属于公开 MVP 数据。
 - 当前 PRD 无登录场景，DB 中不存储用户身份或个人信息；如后续接入用户系统，需重新评估字段与 RLS 策略。
 
 ### 10.7 业务合规与免责
@@ -219,25 +239,25 @@ except (json.JSONDecodeError, ValueError) as e:
 - LLM 解析失败时记录原始 response 仅用于调试，生产日志需设定保留期限并定期清理。
 
 ### 10.9 依赖与供应链
-- 锁定依赖版本（`package-lock.json` / `requirements.txt` 固定到具体版本）。
-- 定期跑依赖漏洞扫描（`npm audit` / `pip-audit`），CI 中失败应阻断发布。
+- 锁定依赖版本（前端 `package-lock.json` + 精确版本，后端 `requirements.txt` 精确版本）。
+- 定期跑依赖漏洞扫描（`npm audit` / `pip-audit`）并在 CI 中阻断发布（计划；当前尚无 CI）。
 
 ### 10.10 风险登记表
 
 | 风险 | 影响 | 缓解 |
 |------|------|------|
-| OpenAI 账单失控 | 财务损失 | 月度硬上限 + 接口限流 + 缓存 |
-| 行情 API 触发限流 | 功能不可用 | 短时缓存 + 多源切换（Alpha Vantage / Twelve Data / yfinance） |
-| LLM 输出非法 JSON | analyze 失败 | 三道防线（Prompt + response_format + 后端校验 + DB CHECK） |
+| OpenAI 账单失控 | 财务损失 | 月度硬上限（运维）+ 接口限流（计划）+ 行情缓存 |
+| 行情 API 触发限流 | 功能不可用 | 30 秒缓存 + deterministic mock fallback；多源切换为后续计划 |
+| LLM 输出非法 JSON | analyze 失败 | 多道防线（Prompt + response_format + 后端校验 + DB CHECK） |
 | LLM 幻觉给出错误判断 | 用户误信、潜在合规风险 | 免责声明 + 文案约束 + 不展示建议性结论 |
 | Service key 泄露 | 数据被改/删 | 仅后端使用 + RLS + 提交前扫描 |
-| Prompt 注入 | 绕过指令、伪造输出 | 字段白名单 + 长度过滤 + 输出校验 |
+| Prompt 注入 | 绕过指令、伪造输出 | 字段级模板 + 输出校验；长度/字符过滤为后续计划 |
 | 上游服务故障（OpenAI / Render） | 功能中断 | 友好降级页面，区分上游故障与系统故障 |
 | 依赖漏洞 | 后端被攻陷 | 锁版本 + 定期审计 |
 
 ## 11. 交付物（README 必含）
 
-1. **在线访问 URL**：部署后 Render 生成的地址。
+1. **在线访问 URL**：部署后 Render 生成并验证的地址；当前仓库只提供 Blueprint 默认主机名。
 2. **Prompt 截图或代码**：System Prompt + User Message 模板。
 3. **Debug 记录示例**：构建/部署中至少一处真实问题及其修复过程（例如 CORS、Render 环境变量、LLM JSON 解析失败等），附日志或代码 diff。
 
@@ -245,8 +265,8 @@ except (json.JSONDecodeError, ValueError) as e:
 
 | 阶段 | 内容 |
 |------|------|
-| M1 | 后端骨架 + `/api/quote` 跑通免费行情 API |
-| M2 | `/api/analyze` 接入 LLM，本地通过 JSON 校验 |
-| M3 | 接入 Supabase，验证写库与 CHECK 约束 |
-| M4 | 前端 UI 接两个接口，本地端到端可用 |
-| M5 | Render 部署 + 写 README 三项交付物 |
+| M1 | ✅ 后端骨架 + `/api/quote` + mock fallback |
+| M2 | ✅ `/api/analyze` 接入 OpenAI-compatible API，本地 JSON 校验 |
+| M3 | ✅ Supabase 适配器、迁移、RLS 与 CHECK 约束 |
+| M4 | ✅ 前端 UI 接入 quote/analyze/history，本地端到端可用 |
+| M5 | ⚠️ Render Blueprint 与 README 已准备；在线部署验证待完成 |

@@ -7,8 +7,8 @@
 #     built into backend/quote.py for when Yahoo rate-limits the Render IP.
 #
 # After first deploy you only need to:
-#   1. Paste SUPABASE_SERVICE_KEY and OPENAI_API_KEY (both sync: false) in
-#      the Render dashboard when prompted.
+#   1. Paste SUPABASE_URL, SUPABASE_SERVICE_KEY, and OPENAI_API_KEY (all
+#      sync: false) in the Render dashboard when prompted.
 #   2. The blueprint bakes in the predicted *.onrender.com hostnames
 #      (stocksight-backend / stocksight-frontend). Rename either service
 #      and you must update CORS_ORIGINS (backend) and VITE_API_BASE
@@ -57,7 +57,7 @@ services:
       - key: STORAGE_BACKEND
         value: supabase
       - key: SUPABASE_URL
-        value: https://qekpdyngtotsvjvftyag.supabase.co
+        sync: false                          # your Supabase project URL
       - key: SUPABASE_SERVICE_KEY
         sync: false                          # service_role key — NEVER the anon / publishable key
 
@@ -78,7 +78,7 @@ services:
     autoDeploy: true
     # NODE_VERSION pin guards against Render auto-bumping to a major that
     # Vite hasn't validated yet.
-    buildCommand: npm install --no-audit --no-fund && npm run build
+    buildCommand: npm ci --no-audit --no-fund && npm run build
     staticPublishPath: dist
     envVars:
       - key: NODE_VERSION
