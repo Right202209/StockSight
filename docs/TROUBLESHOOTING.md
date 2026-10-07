@@ -39,7 +39,7 @@ Check `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, network access, and w
 
 ## Supabase Startup Failure
 
-When `STORAGE_BACKEND=supabase`, startup performs a connectivity check. Verify `SUPABASE_URL`, the backend-only `SUPABASE_SERVICE_KEY`, and that `supabase/migrations/0001_init.sql` has been applied. Do not use the anonymous/publishable key for the backend storage adapter.
+When `STORAGE_BACKEND=supabase`, startup performs a connectivity check. Verify `SUPABASE_URL`, the backend-only `SUPABASE_SERVICE_KEY`, and that all files under `supabase/migrations/` have been applied in order. Do not use the anonymous/publishable key for the backend storage adapter.
 
 ## Render Deployment
 

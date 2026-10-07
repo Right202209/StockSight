@@ -5,7 +5,7 @@ The repository includes [`render.yaml`](../render.yaml), defining one FastAPI we
 ## Supabase
 
 1. Create a Supabase project.
-2. Run [`supabase/migrations/0001_init.sql`](../supabase/migrations/0001_init.sql) in the SQL editor.
+2. Run the SQL files in [`supabase/migrations/`](../supabase/migrations/) in filename order (including the risk-level hardening migration).
 3. Keep Row Level Security enabled. The backend uses the `service_role` key server-side.
 4. Record the project URL and service key for Render environment variables.
 
@@ -16,7 +16,7 @@ The repository includes [`render.yaml`](../render.yaml), defining one FastAPI we
 3. Supply `OPENAI_API_KEY`, `SUPABASE_URL`, and `SUPABASE_SERVICE_KEY` when prompted.
 4. Confirm the generated frontend origin is exactly listed in backend `CORS_ORIGINS`.
 5. Confirm `VITE_API_BASE` points to the generated backend origin.
-6. Verify the backend health check at `/api/health`, then open the frontend.
+6. Verify the backend readiness check at `/api/ready` (and process health at `/api/health`), then open the frontend.
 
 The Blueprint uses Python 3.12.3 and Node 20.18.0. Render's free tier can sleep when idle, so the first request after a cold start may be slow. The default `*.onrender.com` names are predictions until deployment is verified; the repository currently does not claim a live demo URL.
 

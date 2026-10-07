@@ -4,14 +4,20 @@ import json
 import logging
 import sqlite3
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Iterator
+from pathlib import Path
 
 from config import get_settings
 from schemas import AnalysisResult, HistoryItem, QuoteData
 
 log = logging.getLogger(__name__)
+
+
+def _safe_risk_level(value: object) -> str:
+    value = str(value)
+    return value if value in {"Low", "Medium", "High"} else "Medium"
 
 SQLITE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS stock_analyses (
@@ -20,7 +26,7 @@ CREATE TABLE IF NOT EXISTS stock_analyses (
     quote_data TEXT NOT NULL,
     ai_summary TEXT NOT NULL,
     sentiment TEXT NOT NULL CHECK (sentiment IN ('Bullish', 'Neutral', 'Bearish')),
-    risk_level TEXT NOT NULL,
+    risk_level TEXT NOT NULL CHECK (risk_level IN ('Low', 'Medium', 'High')),
     created_at TEXT NOT NULL
 );
 
@@ -32,15 +38,42 @@ CREATE INDEX IF NOT EXISTS idx_stock_analyses_symbol_created
 # ---- SQLite ----------------------------------------------------------------
 
 def _sqlite_init() -> None:
-    with sqlite3.connect(get_settings().sqlite_path) as conn:
+    path = Path(get_settings().sqlite_path)
+    if path.parent != Path("."):
+        path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(get_settings().sqlite_path, timeout=10) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=10000")
         conn.executescript(SQLITE_SCHEMA)
+        table_sql = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'stock_analyses'"
+        ).fetchone()[0]
+        if "risk_level IN ('Low', 'Medium', 'High')" not in table_sql:
+            conn.executescript(
+                """
+                ALTER TABLE stock_analyses RENAME TO stock_analyses_legacy;
+                DROP INDEX IF EXISTS idx_stock_analyses_symbol_created;
+                """
+            )
+            conn.executescript(SQLITE_SCHEMA)
+            conn.execute(
+                """
+                INSERT INTO stock_analyses (id, symbol, quote_data, ai_summary, sentiment, risk_level, created_at)
+                SELECT id, symbol, quote_data, ai_summary, sentiment,
+                       CASE WHEN risk_level IN ('Low', 'Medium', 'High') THEN risk_level ELSE 'Medium' END,
+                       created_at
+                FROM stock_analyses_legacy
+                """
+            )
+            conn.execute("DROP TABLE stock_analyses_legacy")
 
 
 @contextmanager
 def _sqlite_conn() -> Iterator[sqlite3.Connection]:
-    conn = sqlite3.connect(get_settings().sqlite_path)
+    conn = sqlite3.connect(get_settings().sqlite_path, timeout=10)
     conn.row_factory = sqlite3.Row
     try:
+        conn.execute("PRAGMA busy_timeout=10000")
         yield conn
         conn.commit()
     finally:
@@ -91,7 +124,7 @@ def _sqlite_list(symbol: str | None, limit: int) -> list[HistoryItem]:
             quote_data=json.loads(row["quote_data"]),
             ai_summary=row["ai_summary"],
             sentiment=row["sentiment"],
-            risk_level=row["risk_level"],
+            risk_level=_safe_risk_level(row["risk_level"]),
             created_at=row["created_at"],
         )
         for row in rows
@@ -154,7 +187,7 @@ def _supabase_list(symbol: str | None, limit: int) -> list[HistoryItem]:
             quote_data=row["quote_data"],
             ai_summary=row["ai_summary"],
             sentiment=row["sentiment"],
-            risk_level=row["risk_level"],
+            risk_level=_safe_risk_level(row["risk_level"]),
             created_at=row["created_at"],
         )
         for row in resp.data or []
@@ -177,6 +210,18 @@ def init_db() -> None:
         log.info("Using SQLite storage backend at %s", get_settings().sqlite_path)
     else:
         raise RuntimeError(f"Unknown STORAGE_BACKEND: {backend!r}")
+
+
+def check_db() -> None:
+    """Run a cheap storage connectivity check for readiness probes."""
+    if _backend() == "supabase":
+        _supabase().table("stock_analyses").select("id").limit(1).execute()
+        return
+    if _backend() == "sqlite":
+        with _sqlite_conn() as conn:
+            conn.execute("SELECT 1").fetchone()
+        return
+    raise RuntimeError(f"Unknown STORAGE_BACKEND: {_backend()!r}")
 
 
 def insert_analysis(symbol: str, quote: QuoteData, result: AnalysisResult) -> str:

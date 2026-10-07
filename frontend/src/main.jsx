@@ -7,7 +7,9 @@ const initialTheme = (() => {
   try {
     const stored = localStorage.getItem('stocksight-theme')
     if (stored === 'dark' || stored === 'light') return stored
-  } catch {}
+  } catch {
+    // Ignore unavailable localStorage and use system preference.
+  }
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 })()
 document.body.classList.toggle('dark', initialTheme === 'dark')

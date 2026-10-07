@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-The MVP is implemented. The repository contains a FastAPI backend, a React/Vite/Tailwind frontend, SQLite and Supabase storage adapters, a Supabase migration, and a two-service Render Blueprint. There are currently no automated test or lint commands.
+The MVP is implemented. The repository contains a FastAPI backend, a React/Vite/Tailwind frontend, SQLite and Supabase storage adapters, ordered Supabase migrations, and a two-service Render Blueprint. Backend tests run with pytest; frontend verification is the Vite production build.
 
 ## Product
 
@@ -24,6 +24,7 @@ A minimal full-stack web app where a user enters a US stock symbol, fetches the 
 - Backend install/run: `cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/uvicorn main:app --reload --port 8000`
 - Frontend install/run: `cd frontend && npm ci && npm run dev`
 - Frontend production build: `cd frontend && npm run build`
+- Backend tests: `cd backend && python -m pytest -q` (install `requirements-dev.txt` first)
 
 Run backend commands from `backend/`; settings load `.env` relative to the current working directory.
 
@@ -34,7 +35,7 @@ The frontend never talks to the LLM or the quote provider directly. The flow is 
 1. `GET /api/quote?symbol=AAPL` → backend hits `yfinance` (with deterministic mock fallback), returns normalized quote JSON to the frontend for display.
 2. `POST /api/analyze` with `{symbol, quote_data}` → backend formats the quote into the user-message template, calls the LLM, validates the JSON response, **persists `{symbol, quote_data, ai_summary, sentiment, risk_level}` to `stock_analyses`**, and returns the analysis to the frontend.
 
-The persistence step happens on `/api/analyze`, not on `/api/quote` — only analyzed quotes get stored. Don't move the write into the quote endpoint.
+The persistence step happens on `/api/analyze`, not on `/api/quote` — only analyzed quotes get stored. The analyze route re-fetches the quote server-side before model use and persistence. Don't move the write into the quote endpoint.
 
 ## LLM output contract (load-bearing)
 

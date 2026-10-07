@@ -35,8 +35,9 @@ report; redact them and rotate compromised credentials immediately.
 
 ## Scope Notes
 
-The hosted MVP may accept unauthenticated requests and client-supplied quote
-data, as described in [`docs/SECURITY.md`](docs/SECURITY.md). Reports that
+The hosted MVP may accept unauthenticated requests and an API-compatible quote
+payload; the backend re-fetches canonical data before analysis, as described in
+[`docs/SECURITY.md`](docs/SECURITY.md). Reports that
 demonstrate a concrete security impact are welcome even when they involve a
 known limitation; please distinguish an existing limitation from a newly
 introduced vulnerability.

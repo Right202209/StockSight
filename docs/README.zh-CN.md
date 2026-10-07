@@ -108,7 +108,7 @@ npm run build     # 生产构建输出到 dist/
 npm run preview   # 预览生产构建
 ```
 
-仓库目前还没有自动化测试或 lint 脚本。
+后端自动化测试可用 `cd backend && python -m pytest -q`；前端目前没有 lint 脚本。
 
 ### API 冒烟测试
 
@@ -175,6 +175,10 @@ Vite 会在构建时嵌入 `VITE_*` 值。绝不要把后端密钥放入前端�
 ```json
 {"status":"ok"}
 ```
+
+### `GET /api/ready`
+
+检查存储连接是否可用，成功返回 `{"status":"ready"}`；存储不可用时返回 `503`。Render 使用此接口作为就绪探针。
 
 ### `GET /api/quote?symbol=AAPL`
 
@@ -283,14 +287,14 @@ Previous Close: {previous_close}
 Market State: {market_state}
 ```
 
-调用使用 `temperature=0.2` 和 `response_format={"type":"json_object"}`。随后后端执行 `json.loads()` 和 `AnalysisResult.model_validate()`；只有通过验证的结果才会到达数据库的 sentiment 检查。这里有一个需要注意的细节：当前 Pydantic 模型会忽略未知的额外键，并且 `risk_level` 在长度限制内允许任意文本。如果必须要求精确的键集合或固定的风险枚举，应收紧模型并增加测试。
+调用使用 `temperature=0.2` 和 `response_format={"type":"json_object"}`。随后后端执行 `json.loads()` 和 `AnalysisResult.model_validate()`；只有通过严格字段和风险枚举验证的结果才会到达数据库的 sentiment 检查。分析前还会由服务端重新获取报价，避免信任浏览器提交的价格。
 
 ## Supabase 持久化
 
 SQLite 是本地工作的默认选项。Render 的免费文件系统是临时的，因此生产环境应使用 Supabase。
 
 1. 创建一个 Supabase 项目。
-2. 在 Supabase SQL 编辑器中运行 [`supabase/migrations/0001_init.sql`](../supabase/migrations/0001_init.sql)。该脚本会创建 `stock_analyses`、索引和 `sentiment` 检查约束，并启用 RLS（不创建公开策略）。
+2. 按文件名顺序在 Supabase SQL 编辑器中运行 [`supabase/migrations/`](../supabase/migrations/) 下的迁移。它们会创建 `stock_analyses`、索引、检查约束并启用 RLS（不创建公开策略）。
 3. 设置 `STORAGE_BACKEND=supabase`、`SUPABASE_URL` 和仅供后端使用的 `SUPABASE_SERVICE_KEY`。
 4. 启动后端。启动过程会执行零行连接检查；如果表、URL 或密钥不正确，会快速失败。
 
@@ -335,18 +339,15 @@ except QuoteError as exc:
 
 ## 安全性与限制
 
-已实现的保护措施包括：后端专用密钥、精确的 CORS 来源、`nosniff`/`DENY`/`no-referrer` 响应头、股票代码规范化、Pydantic 请求校验、报价缓存、Supabase RLS、数据库 sentiment 检查，以及明确的免责声明。
+已实现的保护措施包括：后端专用密钥、精确的 CORS 来源、`nosniff`/`DENY`/`no-referrer`/HSTS 响应头、请求 ID 与耗时日志、请求体大小限制、按进程限流和每日模型预算、服务端重新获取报价、严格的 Pydantic 请求校验、模型调用超时与并发上限、报价缓存、Supabase RLS、数据库约束，以及明确的免责声明。
 
 以下功能尚未实现，应视为面向公开多用户服务发布前的要求：
 
 - 身份验证和按用户隔离的历史记录；
-- 按 IP/用户限流，以及外部模型费用上限；
-- 请求体大小限制和更严格的报价字段过滤；
-- 服务端重新获取报价或对报价载荷进行签名；
-- 严格拒绝模型输出中的未知键，并使用固定的风险等级枚举；
-- 自动化测试、lint、CI、依赖漏洞扫描和密钥扫描。
+- 分布式按 IP/用户限流，以及共享的外部模型费用上限；
+- 前端 lint 和集中式日志保留/脱敏策略。
 
-另请注意，`/api/analyze` 在进行结构校验后接受客户端提供的报价数据。因此，未认证的调用者可以提交伪造值或触发模型费用；这是有意保留的 MVP 限制，在扩大开放范围前应予以解决。
+另请注意，`/api/analyze` 保留客户端报价字段是为了兼容 API，但实际调用模型和写入数据库前会由服务端重新获取报价。未认证的调用者仍可触发模型费用；这是有意保留的 MVP 限制，在扩大开放范围前应予以解决。
 
 ## 仓库结构
 
@@ -378,7 +379,8 @@ StockSight/
 │   ├── tailwind.config.js
 │   └── src/                     # React app, components, API wrapper, utilities
 └── supabase/migrations/
-    └── 0001_init.sql            # schema, index, CHECK, and RLS
+    ├── 0001_init.sql            # schema, index, sentiment CHECK, and RLS
+    └── 0002_harden_risk_level.sql # risk-level CHECK and legacy cleanup
 ```
 
 ## 贡献
@@ -391,4 +393,4 @@ npm ci
 npm run build
 ```
 
-仓库目前还没有自动化测试套件；许可证已采用 [MIT License](../LICENSE)。
+后端自动化测试可用 `cd backend && python -m pytest -q`；前端生产构建使用 `npm run build`。许可证已采用 [MIT License](../LICENSE)。

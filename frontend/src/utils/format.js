@@ -32,6 +32,7 @@ export const formatDateTime = (iso) => {
   if (!iso) return '—'
   try {
     const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return '—'
     return d.toLocaleString('en-US', {
       month: 'short',
       day: '2-digit',
@@ -48,6 +49,7 @@ export const formatTime = (iso) => {
   if (!iso) return '—'
   try {
     const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return '—'
     return d.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',

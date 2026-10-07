@@ -70,7 +70,7 @@ Community and project policies:
 
 ## Current Scope
 
-The MVP intentionally does not provide authentication, user-scoped history, rate limiting, request-size limits, server-side quote revalidation, automated tests, linting, or CI. Review [Security and limitations](docs/SECURITY.md) before any public multi-user deployment.
+The MVP still does not provide authentication, user-scoped history, or a distributed model-provider spending cap. Runtime protections include request-size limits, per-process rate limiting and daily analysis budgets, server-side quote revalidation, strict schemas, automated backend tests, and CI. Review [Security and limitations](docs/SECURITY.md) before any public multi-user deployment.
 
 There is no verified production URL in the repository yet. `render.yaml` contains the deployment blueprint and default service names.
 

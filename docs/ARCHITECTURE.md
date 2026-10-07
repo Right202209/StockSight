@@ -41,8 +41,8 @@ db.py -> SQLite (local) or Supabase (production)
 
 ## Storage
 
-SQLite is convenient for local development. Render's free filesystem is ephemeral, so production uses Supabase through the same storage interface. The schema and RLS setup live in [`supabase/migrations/0001_init.sql`](../supabase/migrations/0001_init.sql).
+SQLite is convenient for local development. Render's free filesystem is ephemeral, so production uses Supabase through the same storage interface. The schema, RLS setup, and subsequent constraints live in the ordered files under [`supabase/migrations/`](../supabase/migrations/).
 
 ## Current Tradeoffs
 
-The quote cache is process-local, not shared across instances. The analysis endpoint accepts client-supplied quote data after shape validation, and history is not user-scoped. These are known MVP limitations, not guarantees of data integrity or privacy.
+The quote cache is process-local, not shared across instances. Yahoo calls run in a bounded provider pool with a finite timeout. The analysis endpoint accepts a client quote for API compatibility but re-fetches the canonical quote, and history is not user-scoped. These are known MVP limitations, not guarantees of privacy.

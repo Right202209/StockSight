@@ -34,7 +34,7 @@ services:
     autoDeploy: true
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --no-access-log
-    healthCheckPath: /api/health
+    healthCheckPath: /api/ready
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.3
@@ -48,6 +48,10 @@ services:
         value: https://api.openai.com/v1     # swap for DeepSeek / Moonshot / vLLM / etc.
       - key: OPENAI_MODEL
         value: gpt-4o-mini
+      - key: OPENAI_TIMEOUT_SECONDS
+        value: "20"
+      - key: ANALYZE_CONCURRENCY
+        value: "2"
 
       # ── CORS: must match the deployed frontend origin exactly ──────────
       - key: CORS_ORIGINS
@@ -68,6 +72,16 @@ services:
         value: yfinance
       - key: QUOTE_CACHE_TTL
         value: "30"
+      - key: QUOTE_TIMEOUT_SECONDS
+        value: "10"
+      - key: MAX_REQUEST_BYTES
+        value: "65536"
+      - key: ANALYZE_RATE_LIMIT
+        value: "10"
+      - key: RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+      - key: ANALYZE_DAILY_LIMIT
+        value: "500"
 
   # ─── Frontend: static site (Vite build → dist/) ──────────────────────────
   - type: web
@@ -117,3 +131,6 @@ services:
       - path: /*
         name: Permissions-Policy
         value: camera=(), microphone=(), geolocation=()
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000; includeSubDomains

@@ -7,13 +7,13 @@
 | 范围 | 状态 | 当前基线 |
 |---|---|---|
 | 前端 | ✅ 已实现 | React 18 + Vite 5 + Tailwind CSS 3，响应式单页界面 |
-| 后端 | ✅ 已实现 | Python 3.12 + FastAPI，`/api/health`、`/api/quote`、`/api/analyze`、`/api/history` |
-| 行情 | ✅ 已实现 | `yfinance` + 30 秒进程内缓存；上游失败时使用确定性 mock，并返回来源标记 |
+| 后端 | ✅ 已实现 | Python 3.12 + FastAPI，`/api/health`、`/api/ready`、`/api/quote`、`/api/analyze`、`/api/history` |
+| 行情 | ✅ 已实现 | `yfinance` + 30 秒进程内缓存；上游超时/失败时使用确定性 mock，并返回来源标记 |
 | AI 分析 | ✅ 已实现 | OpenAI-compatible Chat Completions，JSON mode，`json.loads` + Pydantic 校验 |
 | 存储 | ✅ 已实现 | 本地 SQLite；生产通过 `STORAGE_BACKEND=supabase` 使用 Supabase |
 | 部署 | ✅ 已实现 | `render.yaml` 提供 FastAPI Web Service + Vite 静态站点 Blueprint |
-| 认证、用户隔离、限流、请求体大小限制 | 🗺 计划 | 当前 MVP 未实现，公开部署前必须补齐或明确接受风险 |
-| 自动化测试、Lint、CI、依赖漏洞扫描 | 🗺 计划 | 当前仓库没有对应脚本或流水线 |
+| 认证、用户隔离、分布式限流/预算 | 🗺 计划 | 当前 MVP 未实现，公开部署前必须补齐或明确接受风险 |
+| 自动化测试、CI、依赖漏洞扫描 | ✅ 已实现 | 后端 pytest、前端构建、pip/npm 审计和密钥扫描已纳入 GitHub Actions；前端 lint 仍待补充 |
 | 在线访问地址 | ⚠️ 待验证 | Blueprint 中的 `*.onrender.com` 是默认主机名，不代表已经在线 |
 
 产品目标中的“实时行情”在实现中应理解为“上游返回的最新可用行情”；免费数据源可能延迟，且可能被替换为 Demo Data。
@@ -206,23 +206,23 @@ except (json.JSONDecodeError, ValidationError) as e:
 
 ### 10.2 输入校验
 - `symbol` 必须正则校验（`^[A-Z]{1,5}(\.[A-Z]{1,2})?$`），拒绝任何非预期字符；防止经由 symbol 触发上游 API 的异常路径或 Prompt 注入。
-- `/api/analyze` 当前按 Pydantic 模型提取字段，不把任意 JSON 原样拼入 Prompt；字段长度/字符过滤与服务端重新获取行情为**计划中的加固项**。
-- 请求体大小限制为**计划中的加固项**，当前版本尚未实现。
+- `/api/analyze` 使用严格 Pydantic 模型；字段长度/字符过滤、请求体上限和服务端重新获取行情均已实现。
 
 ### 10.3 Prompt 注入与 LLM 输出风险
-- 拼装 User Message 时使用 **字段级模板** 而非整段 JSON 拼接；行情字段值的严格长度/字符过滤仍是**计划中的加固项**。
+- 拼装 User Message 时使用 **字段级模板** 而非整段 JSON 拼接；行情字段值经过严格长度、格式和数值过滤。
 - LLM 响应已有多道防线（System Prompt 约束 + `response_format` + 后端校验 + DB CHECK），任何一道告警都不得入库。
 - LLM 可能**幻觉**：必须在前端展示「AI 分析仅供参考、非投资建议」的免责声明（见 10.7）。
 
 ### 10.4 限流与成本控制
-- 后端按 IP/用户对 `/api/analyze` 限流（计划；当前 MVP 未实现），防止恶意请求把 LLM 账单打爆。
-- 在 OpenAI/模型供应商后台设置 **月度硬上限（hard limit）**（运维必做；应用本身当前未实现费用闸门）。
+- 后端按 IP 对 `/api/analyze` 限流，并提供每进程 UTC 日预算；多实例仍需共享存储实现分布式限流。
+- 在 OpenAI/模型供应商后台设置 **月度硬上限（hard limit）**（运维必做）。
 - 行情 API 也按免费额度做短时缓存（同一 symbol 在 N 秒内复用结果），降低被限流风险。
+- Yahoo 调用设置有限超时并使用有界 provider 线程池，避免上游网络阻塞 API 工作线程。
 
 ### 10.5 网络与传输
 - 全站强制 HTTPS（Render 默认）；自定义域名需正确配置 TLS。
 - CORS 严格白名单：只允许部署的前端域名，禁用 `*`。
-- 建议响应头加 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: no-referrer`。
+- 响应包含 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: no-referrer`、Permissions-Policy、HSTS（HTTPS）和请求 ID。
 
 ### 10.6 数据库
 - 启用 Supabase **Row Level Security**；`stock_analyses` 默认拒绝 Supabase 公开读写，后端通过 service key 访问。当前后端 `/api/history` 未认证且未按用户隔离，属于公开 MVP 数据。
@@ -240,13 +240,13 @@ except (json.JSONDecodeError, ValidationError) as e:
 
 ### 10.9 依赖与供应链
 - 锁定依赖版本（前端 `package-lock.json` + 精确版本，后端 `requirements.txt` 精确版本）。
-- 定期跑依赖漏洞扫描（`npm audit` / `pip-audit`）并在 CI 中阻断发布（计划；当前尚无 CI）。
+- 定期跑依赖漏洞扫描（`npm audit` / `pip-audit`）并在 CI 中阻断发布。
 
 ### 10.10 风险登记表
 
 | 风险 | 影响 | 缓解 |
 |------|------|------|
-| OpenAI 账单失控 | 财务损失 | 月度硬上限（运维）+ 接口限流（计划）+ 行情缓存 |
+| OpenAI 账单失控 | 财务损失 | 月度硬上限（运维）+ 接口限流/每日预算 + 行情缓存 |
 | 行情 API 触发限流 | 功能不可用 | 30 秒缓存 + deterministic mock fallback；多源切换为后续计划 |
 | LLM 输出非法 JSON | analyze 失败 | 多道防线（Prompt + response_format + 后端校验 + DB CHECK） |
 | LLM 幻觉给出错误判断 | 用户误信、潜在合规风险 | 免责声明 + 文案约束 + 不展示建议性结论 |

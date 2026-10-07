@@ -21,7 +21,7 @@ export default function HistoryPanel({ items, loading, onSelect, activeId }) {
       )}
 
       <ol className="mt-2 divide-y rule">
-        {items.map((item, idx) => {
+        {items.map((item) => {
           const tone = toneOf(item.sentiment)
           const q = item.quote_data || {}
           const dir = directionOf(q.change)

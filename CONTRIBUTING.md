@@ -59,8 +59,9 @@ curl http://localhost:8000/api/health
 curl 'http://localhost:8000/api/quote?symbol=AAPL'
 ```
 
-The repository does not currently ship an automated test or lint command. If
-you add one, document it here and include it in the pull request description.
+Backend tests are available with `cd backend && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q` after
+installing `requirements-dev.txt`. Run `npm run lint` and `npm run build` for
+frontend changes, and `ruff check .` for backend changes.
 
 ## Pull Requests
 

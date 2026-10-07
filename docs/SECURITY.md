@@ -4,9 +4,15 @@
 
 - Provider, model, and Supabase credentials remain server-side.
 - CORS uses an exact origin allowlist.
-- Responses include `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: no-referrer`.
+- Responses include `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, a restrictive `Permissions-Policy`, and HSTS on HTTPS.
 - Symbols are normalized and validated on both frontend and backend.
 - Pydantic validates the analysis request and model result before persistence.
+- Request bodies are capped, analysis requests are rate-limited per client, and concurrent model calls are bounded.
+- A per-process UTC-day analysis budget limits model spend; configure the provider's account hard limit as the authoritative cap.
+- Analysis quotes are re-fetched server-side so browser-supplied prices are not sent to the model or persisted.
+- Upstream model calls have a finite timeout and retries disabled; model output rejects unknown keys and invalid risk levels.
+- Yahoo Finance calls have a finite timeout and a bounded provider thread pool; timeout falls back to labeled mock data.
+- Requests emit request IDs, status, and duration without logging request bodies or model content.
 - Quote caching reduces repeated upstream requests.
 - Supabase RLS and a database sentiment check provide storage-side safeguards.
 - The UI labels mock data and includes an explicit not-financial-advice disclaimer.
@@ -16,24 +22,21 @@
 The following are not implemented and should be addressed before a public multi-user service:
 
 - authentication and user-scoped history;
-- per-IP/user rate limiting and a model-provider spending cap;
-- request-body limits and stronger numeric/text constraints;
-- server-side quote re-fetching or signed quote payloads;
-- strict rejection of unknown model-output keys and a fixed risk-level enum;
-- upstream timeouts, bounded retries, and concurrency controls;
-- automated tests, linting, CI, dependency vulnerability scans, and secret scanning;
-- structured logging with retention/redaction rules.
+- a distributed model-provider spending cap (the in-process budget resets on restart and is not shared across workers);
+- distributed rate limiting across multiple backend instances;
+- frontend linting;
+- centralized structured logging with retention/redaction rules (current logs avoid storing model content but remain process-local text logs).
 
 ## Data Trust
 
-`POST /api/analyze` currently accepts client-supplied quote data after shape validation. An unauthenticated caller can submit fabricated values or trigger model spend. `/api/history` is also unauthenticated, so stored analyses should be treated as shared public MVP data.
+`POST /api/analyze` accepts a quote payload for API compatibility but re-fetches the canonical quote before model use and persistence. An unauthenticated caller can still trigger model spend. `/api/history` is also unauthenticated, so stored analyses should be treated as shared public MVP data.
 
 Quote data may be delayed. A provider fallback is clearly marked as `mock` in the API and as **Demo Data** in the UI; it must not be interpreted as a live market quote.
 
 ## Pre-release Checklist
 
 - [ ] Set a provider/model monthly hard spending limit.
-- [ ] Add API rate limiting and authentication policy.
+- [ ] Define authentication and user-scoped history policy.
 - [ ] Verify all production CORS origins.
 - [ ] Apply the Supabase migration and confirm RLS.
 - [ ] Run dependency and secret scans.

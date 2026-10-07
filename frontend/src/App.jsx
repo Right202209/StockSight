@@ -21,6 +21,8 @@ export default function App({ initialTheme }) {
 
   const [notice, setNotice] = useState(null)
   const noticeTimer = useRef(null)
+  const quoteAbort = useRef(null)
+  const analyzeAbort = useRef(null)
 
   const flash = useCallback((text, tone = 'error') => {
     setNotice({ text, tone, key: Date.now() })
@@ -28,18 +30,28 @@ export default function App({ initialTheme }) {
     noticeTimer.current = setTimeout(() => setNotice(null), 6000)
   }, [])
 
+  useEffect(() => () => {
+    quoteAbort.current?.abort()
+    analyzeAbort.current?.abort()
+    clearTimeout(noticeTimer.current)
+  }, [])
+
   const toggleTheme = () => {
     setTheme((prev) => {
       const next = prev === 'dark' ? 'light' : 'dark'
       document.body.classList.toggle('dark', next === 'dark')
-      try { localStorage.setItem('stocksight-theme', next) } catch {}
+      try {
+        localStorage.setItem('stocksight-theme', next)
+      } catch {
+        // Storage may be disabled by privacy settings; theme still updates in memory.
+      }
       return next
     })
   }
 
   // Initial health + history fetch
   useEffect(() => {
-    api.health().then(() => setHealthy(true)).catch(() => setHealthy(false))
+    api.ready().then(() => setHealthy(true)).catch(() => setHealthy(false))
     refreshHistory()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -59,11 +71,14 @@ export default function App({ initialTheme }) {
 
   const handleQuote = useCallback(
     async (symbol) => {
+      quoteAbort.current?.abort()
+      const controller = new AbortController()
+      quoteAbort.current = controller
       setLoadingQuote(true)
       setAnalysis(null)
       setActiveHistoryId(null)
       try {
-        const data = await api.quote(symbol)
+        const data = await api.quote(symbol, controller.signal)
         setQuote(data)
         setHealthy(true)
       } catch (e) {
@@ -76,7 +91,10 @@ export default function App({ initialTheme }) {
         )
         if (e instanceof ApiError && e.status === 0) setHealthy(false)
       } finally {
-        setLoadingQuote(false)
+        if (quoteAbort.current === controller) {
+          quoteAbort.current = null
+          setLoadingQuote(false)
+        }
       }
     },
     [flash],
@@ -84,20 +102,29 @@ export default function App({ initialTheme }) {
 
   const handleAnalyze = useCallback(async () => {
     if (!quote) return
+    analyzeAbort.current?.abort()
+    const controller = new AbortController()
+    analyzeAbort.current = controller
     setLoadingAnalyze(true)
     try {
-      const data = await api.analyze(quote.symbol, quote)
+      const data = await api.analyze(quote.symbol, quote, controller.signal)
       setAnalysis(data)
       setActiveHistoryId(data.id)
       refreshHistory()
     } catch (e) {
+      if (e.name === 'AbortError') return
       flash(
-        e instanceof ApiError && e.status === 502
-          ? 'AI analysis failed. The model may be unreachable — please try again.'
-          : `Analyze failed: ${e.message}`,
+        e instanceof ApiError && e.status === 429
+          ? 'Analysis is temporarily rate-limited or at capacity. Please try again later.'
+          : e instanceof ApiError && e.status === 502
+            ? 'AI analysis failed. The model may be unreachable — please try again.'
+            : `Analyze failed: ${e.message}`,
       )
     } finally {
-      setLoadingAnalyze(false)
+      if (analyzeAbort.current === controller) {
+        analyzeAbort.current = null
+        setLoadingAnalyze(false)
+      }
     }
   }, [quote, refreshHistory, flash])
 

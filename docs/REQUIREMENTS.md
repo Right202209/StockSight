@@ -20,7 +20,7 @@ The current Vite 5 / Tailwind 3 line is intentional. Moving to newer major versi
 |---|---|---|
 | OpenAI-compatible Chat Completions API | AI analysis | API key, model id, and an endpoint that supports `response_format={"type":"json_object"}` |
 | Yahoo Finance through `yfinance` | Default quote source | Network access; the backend falls back to deterministic mock data when Yahoo is unavailable |
-| Supabase | Production persistence | Project URL, `service_role` key, and the applied `supabase/migrations/0001_init.sql` migration |
+| Supabase | Production persistence | Project URL, `service_role` key, and all ordered files under `supabase/migrations/` applied |
 | Render | Hosted deployment | One Python web service and one static frontend service, as defined in `render.yaml` |
 
 ## Implemented functional requirements
@@ -28,6 +28,7 @@ The current Vite 5 / Tailwind 3 line is intentional. Moving to newer major versi
 - Accept US ticker-like symbols matching `^[A-Z]{1,5}(\.[A-Z]{1,2})?$`.
 - Return a normalized latest-available quote with price, change, day range, volume, timestamp, market state, and provider provenance.
 - Cache quotes in memory for a configurable TTL (30 seconds by default).
+- Bound Yahoo Finance calls with a configurable timeout and provider worker pool.
 - Fall back to deterministic mock quotes when Yahoo Finance fails, and label that source in both the API and UI.
 - Request structured AI output with `summary`, `sentiment`, and `risk_level` fields.
 - Parse and validate AI output before persistence. Invalid responses must not be written.
@@ -35,6 +36,9 @@ The current Vite 5 / Tailwind 3 line is intentional. Moving to newer major versi
 - List recent analysis history, optionally filtered by symbol.
 - Keep quote-provider, LLM, and Supabase credentials on the backend.
 - Apply a CORS allowlist, basic security headers, Supabase RLS, and a database sentiment check.
+- Enforce bounded request bodies, per-client analysis rate limits, finite model-call timeouts, and bounded analysis concurrency.
+- Enforce a configurable per-process daily analysis budget.
+- Re-fetch the quote server-side before analysis and reject unknown request/model fields.
 - Display quote source/time and an AI/not-financial-advice disclaimer in the UI.
 
 ## Current API requirements
@@ -48,20 +52,16 @@ The current Vite 5 / Tailwind 3 line is intentional. Moving to newer major versi
 
 ## Partially implemented requirements
 
-- The prompt asks for exactly three JSON keys, but the current Pydantic model ignores unknown extra keys rather than rejecting them.
-- `sentiment` is constrained to `Bullish`, `Neutral`, or `Bearish`; `risk_level` is currently any non-empty string up to 50 characters.
-- `/api/analyze` validates the shape of client-supplied quote data, but it does not re-fetch or cryptographically verify that quote.
+- `/api/analyze` still accepts a quote payload for API compatibility, but re-fetches the canonical quote before model use and persistence.
+- `sentiment` and `risk_level` are constrained to their documented enums; unknown model/request fields are rejected.
 - Supabase blocks direct anonymous access with RLS, but the backend history endpoint itself is public and not user-scoped.
-- Field-level prompt construction is implemented, but quote text fields do not yet have strict length/character filters.
+- Quote text fields and timestamps are bounded and validated before model use.
 
 ## Required hardening before a public or multi-user release
 
 - Add authentication and user-scoped history, or explicitly retain a public shared archive.
-- Add per-IP/user rate limiting and a model-provider spending limit for `/api/analyze`.
-- Add request-body limits and stronger numeric/text constraints on `QuoteData`.
-- Re-fetch quotes server-side or issue signed quote identifiers before analysis.
-- Reject unexpected model-output keys and constrain risk levels if the three-value contract is mandatory.
-- Add automated backend/frontend tests, linting, CI, dependency vulnerability scans, and secret scanning.
+- Move rate limiting and the daily model budget to shared storage when scaling beyond one worker, and retain the provider account hard limit.
+- Add frontend linting and secret scanning to CI (dependency audits now run in CI).
 - Define log retention/redaction policy for raw malformed model responses.
 - Verify and publish the production URL; the hostnames in `render.yaml` are deployment defaults, not proof that a service is live.
 

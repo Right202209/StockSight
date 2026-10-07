@@ -10,6 +10,10 @@ Returns a shallow process-health response:
 {"status":"ok"}
 ```
 
+## `GET /api/ready`
+
+Checks storage connectivity and returns `{"status":"ready"}`. A `503` response means the service is alive but not ready to serve persisted analyses.
+
 ## `GET /api/quote?symbol=AAPL`
 
 Accepts symbols matching `^[A-Z]{1,5}(\\.[A-Z]{1,2})?$`. Symbols are normalized to uppercase. `yfinance` is preferred; provider failures fall back to deterministic mock data and set `provider` to `mock`.
@@ -36,7 +40,7 @@ Invalid symbols return `400`. An unrecoverable quote error returns `502`. Quotes
 
 ## `POST /api/analyze`
 
-The request must include a normalized symbol and a `quote_data` object. The two symbols must match case-insensitively.
+The request must include a normalized symbol and a `quote_data` object. The two symbols must match after normalization. The backend re-fetches the quote server-side before calling the model and persisting data; client quote values are treated as untrusted hints.
 
 ```json
 {
@@ -68,7 +72,7 @@ Successful analyses are validated and persisted before the response is returned:
 }
 ```
 
-`400` indicates invalid input or a symbol mismatch, `422` indicates FastAPI request validation, and `502` indicates a model/upstream error or malformed model response. Failed analyses are not persisted.
+`422` indicates invalid input or a symbol mismatch, `429` indicates rate, concurrency, or daily-budget limits, `413` indicates an oversized request, and `502` indicates a model/upstream error or malformed model response. Failed analyses are not persisted.
 
 ## `GET /api/history`
 
