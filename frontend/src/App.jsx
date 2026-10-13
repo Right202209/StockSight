@@ -108,6 +108,7 @@ export default function App({ initialTheme }) {
       summary: item.ai_summary,
       sentiment: item.sentiment,
       risk_level: item.risk_level,
+      created_at: item.created_at,
     })
     setActiveHistoryId(item.id)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -143,6 +144,8 @@ export default function App({ initialTheme }) {
                 freshKey={analysis.id || analysis.summary}
               />
             )}
+
+            {loadingAnalyze && !analysis && <SkeletonAnalysis />}
           </main>
 
           <HistoryPanel
@@ -190,6 +193,26 @@ function SkeletonCard() {
       <div className="h-3 w-24 bg-ink-200/30 dark:bg-ink-50/10 mb-4" />
       <div className="h-12 w-40 bg-ink-200/30 dark:bg-ink-50/10 mb-6" />
       <div className="h-20 w-64 bg-ink-200/30 dark:bg-ink-50/10" />
+    </div>
+  )
+}
+
+function SkeletonAnalysis() {
+  return (
+    <div className="card p-6 sm:p-8 animate-pulse-dot" aria-hidden>
+      <div className="flex items-center justify-between pb-5 border-b rule">
+        <div className="h-7 w-56 bg-ink-200/30 dark:bg-ink-50/10" />
+        <div className="h-6 w-20 bg-ink-200/30 dark:bg-ink-50/10" />
+      </div>
+      <div className="pt-6 space-y-3">
+        <div className="h-6 w-full bg-ink-200/30 dark:bg-ink-50/10" />
+        <div className="h-6 w-4/5 bg-ink-200/30 dark:bg-ink-50/10" />
+      </div>
+      <div className="mt-7 grid grid-cols-3 gap-6 border-t rule pt-5">
+        <div className="h-10 bg-ink-200/30 dark:bg-ink-50/10" />
+        <div className="h-10 bg-ink-200/30 dark:bg-ink-50/10" />
+        <div className="h-10 bg-ink-200/30 dark:bg-ink-50/10" />
+      </div>
     </div>
   )
 }

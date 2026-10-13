@@ -1,10 +1,10 @@
-import { toneOf } from '../utils/format'
+import { formatDateTime, toneOf } from '../utils/format'
 
 export default function AnalysisCard({ analysis, symbol, freshKey }) {
   const tone = toneOf(analysis.sentiment)
 
   return (
-    <article key={freshKey} className="card animate-fade-up p-6 sm:p-8">
+    <article key={freshKey} className="card animate-fade-up p-6 sm:p-8 border-l-2 border-l-gold-500/60 dark:border-l-gold-400/50">
       <header className="flex items-start justify-between gap-4 flex-wrap pb-5 border-b rule">
         <div>
           <div className="label-eyebrow mb-2">AI Commentary · {symbol}</div>
@@ -30,7 +30,7 @@ export default function AnalysisCard({ analysis, symbol, freshKey }) {
       <div className="mt-7 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 border-t rule pt-5">
         <Stat label="Sentiment" value={analysis.sentiment} tone={tone.text} />
         <Stat label="Risk Level" value={analysis.risk_level} />
-        <Stat label="Generated" value="Just now" />
+        <Stat label="Generated" value={analysis.created_at ? formatDateTime(analysis.created_at) : 'Just now'} />
       </div>
 
       <Disclaimer />

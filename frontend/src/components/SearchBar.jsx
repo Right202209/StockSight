@@ -36,7 +36,7 @@ export default function SearchBar({ onSubmit, loading, defaultSymbol = '' }) {
   }
 
   return (
-    <section className="py-6 sm:py-8 border-b border-ink-500/15 dark:border-ink-50/15">
+    <section className="sticky top-0 z-20 py-6 sm:py-8 border-b border-ink-500/15 dark:border-ink-50/15 bg-paper-100/85 dark:bg-ink-600/85 backdrop-blur-sm">
       <form onSubmit={submit} className="flex flex-col gap-3">
         <label htmlFor="symbol" className="label-eyebrow">
           Ticker Lookup · Press <span className="font-mono normal-case">/</span> to focus
