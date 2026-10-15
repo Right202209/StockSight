@@ -10,7 +10,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "gen:demo": "node scripts/generate-demo-data.mjs",
+    "build:pages": "npm run gen:demo && vite build --config vite.pages.config.js && node scripts/finalize-pages-build.mjs"
   },
   "dependencies": {
     "react": "18.3.1",

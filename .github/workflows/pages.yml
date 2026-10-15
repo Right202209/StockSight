@@ -1,0 +1,67 @@
+# Builds the offline sample-data demo and publishes it to GitHub Pages.
+#
+# Pages servers `https://<owner>.github.io/StockSight/`. The build is the
+# real React app + Tailwind, with `./api` swapped for the in-repo sample
+# dataset (see frontend/vite.pages.config.js) — no backend, no secrets, and
+# no outbound network are involved, so the workflow needs none of them.
+#
+# The artifact-deploy pattern is used (the `gh-pages` *branch* is never
+# touched): Actions uploads `frontend/dist-pages` and Pages serves it.
+#
+# Deployments only happen on pushes to main or manual dispatch; every other
+# branch builds nothing.
+
+name: Build & deploy static demo to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One flow at a time: a superseding run cancels the one still in flight so
+# rapid pushes can't pile up concurrent page deployments.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate sample data + build static demo
+        working-directory: frontend
+        run: npm run build:pages
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Everything Pages must serve: dist-pages/index.html + its assets.
+          path: frontend/dist-pages
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

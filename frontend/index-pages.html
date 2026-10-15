@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%231A1A18'/><text x='50' y='66' font-family='Georgia,serif' font-style='italic' font-size='56' fill='%23F4EFE6' text-anchor='middle'>S</text></svg>"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#F4EFE6" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1A1A18" media="(prefers-color-scheme: dark)" />
+    <meta
+      name="description"
+      content="StockSight — a static demo of an editorial dashboard for US equity quotes and sober, AI-generated commentary on sentiment and risk. Sample data, no backend and no API key required."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Run before first paint so dark-mode users never flash the light
+      // paper background (F-03). The <html> class is what Tailwind's
+      // darkMode:'class' keys off. Keep the body of this script identical to
+      // the one in index.html — the Pages workflow computes this file's CSP
+      // hash from the built HTML and hardcodes it into render.yaml only if
+      // they still match the deployed page.
+      (function () {
+        try {
+          var t = localStorage.getItem('stocksight-theme');
+          if (t !== 'dark' && t !== 'light') {
+            t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          if (t === 'dark') document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="StockSight — Live Demo (Sample Data)" />
+    <meta property="og:description" content="Explore the interface with 12 sample analyses — no API key, no install." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="StockSight — Live Demo (Sample Data)" />
+    <meta name="twitter:description" content="Explore the interface with 12 sample analyses — no API key, no install." />
+    <meta
+      name="robots"
+      content="noindex,nofollow"
+    />
+    <title>StockSight — Live Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400;1,500&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/pages-demo.jsx"></script>
+  </body>
+</html>
