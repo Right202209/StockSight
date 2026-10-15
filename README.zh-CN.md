@@ -46,3 +46,5 @@ npm run dev
 ## 许可证
 
 StockSight AI 采用 [MIT License](LICENSE) 发布。
+
+前端离线示例数据演示已发布在 [`https://droite.me/StockSight/`](https://droite.me/StockSight/)（详见 [GitHub Pages 演示](docs/DEPLOYMENT.md#github-pages-static-sample-data-demo)）。Render 后端目前尚无已验证的生产地址。

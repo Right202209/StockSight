@@ -73,7 +73,7 @@ Community and project policies:
 
 The MVP intentionally does not provide authentication, user-scoped history, rate limiting, request-size limits, server-side quote revalidation, automated tests, linting, or CI. Review [Security and limitations](docs/SECURITY.md) before any public multi-user deployment.
 
-There is no verified production URL in the repository yet. `render.yaml` contains the deployment blueprint and default service names.
+A verified, fully offline demo of the frontend with sample data is live at [`https://droite.me/StockSight/`](https://droite.me/StockSight/); see [GitHub Pages (static sample-data demo)](docs/DEPLOYMENT.md#github-pages-static-sample-data-demo). The Render backend has no verified production URL yet — `render.yaml` contains the deployment blueprint and default service names.
 
 ## License
 

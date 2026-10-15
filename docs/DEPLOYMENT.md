@@ -18,11 +18,13 @@ The repository includes [`render.yaml`](../render.yaml), defining one FastAPI we
 5. Confirm `VITE_API_BASE` points to the generated backend origin.
 6. Verify the backend health check at `/api/health`, then open the frontend.
 
-The Blueprint uses Python 3.12.3 and Node 20.18.0. Render's free tier can sleep when idle, so the first request after a cold start may be slow. The default `*.onrender.com` names are predictions until deployment is verified; the repository currently does not claim a live demo URL.
+The Blueprint uses Python 3.12.3 and Node 20.18.0. Render's free tier can sleep when idle, so the first request after a cold start may be slow. The default `*.onrender.com` names are predictions until deployment is verified; the repository does not claim a verified Render backend URL. The only live, public URL is the offline GitHub Pages demo below.
 
 ## GitHub Pages (static sample-data demo)
 
-A fully offline demo is published to `https://right202209.github.io/StockSight/`. It is the
+A fully offline demo is published to `https://droite.me/StockSight/`. The account has a custom
+Pages domain, so the generated `https://right202209.github.io/StockSight/` URL answers with a
+301 redirect to that origin; both reach the same deployment. It is the
 same React frontend, but `./api` is swapped for an in-repo sample dataset
 (`frontend/src/demo/`), so it needs no backend, no API keys, and no network. Every page is
 honestly labeled: the `Static demo` banner, the `Demo Data` badge on each quote, and
