@@ -4,14 +4,10 @@ import App from './App.jsx'
 import { I18nProvider } from './i18n.jsx'
 import './index.css'
 
-const initialTheme = (() => {
-  try {
-    const stored = localStorage.getItem('stocksight-theme')
-    if (stored === 'dark' || stored === 'light') return stored
-  } catch {}
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-})()
-document.body.classList.toggle('dark', initialTheme === 'dark')
+// Theme detection happens in an inline <script> in index.html, before first
+// paint, to avoid a flash of light background. Here we only read back what it
+// decided and hand the value to React as initial state.
+const initialTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

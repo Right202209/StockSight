@@ -7,6 +7,21 @@
     <meta name="theme-color" content="#F4EFE6" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#1A1A18" media="(prefers-color-scheme: dark)" />
     <meta name="description" content="StockSight — enter a US stock symbol for a live quote and sober, AI-generated commentary on sentiment and risk. No hype." />
+    <meta name="color-scheme" content="light dark">
+    <script>
+      // Run before first paint so dark-mode users never flash the light
+      // paper background (F-03). The <html> class is what Tailwind's
+      // darkMode:'class' keys off.
+      (function () {
+        try {
+          var t = localStorage.getItem('stocksight-theme');
+          if (t !== 'dark' && t !== 'light') {
+            t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          if (t === 'dark') document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
     <meta property="og:type" content="website" />
     <meta property="og:title" content="StockSight — Equities and AI Commentary" />
     <meta property="og:description" content="Live US equity quotes with sober, AI-generated commentary on sentiment and risk." />
@@ -16,8 +31,10 @@
     <title>StockSight — Equities & AI Commentary</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Only the weights actually used by the UI: display=swap avoids a
+         blocking invisible-text window; preconnect warms the font hosts. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,700;1,9..144,400;1,9..144,500;1,9..144,700&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400;1,500&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
   </head>

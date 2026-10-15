@@ -4,6 +4,7 @@ This directory contains the detailed, versioned documentation for StockSight AI.
 
 ## Guides
 
+- [Project panorama](PROJECT.md): full project tree, per-file responsibilities, backend/frontend breakdown, and the end-to-end data flow — best first read.
 - [API reference](API.md): endpoints, request/response shapes, validation, and smoke tests.
 - [Configuration](CONFIGURATION.md): backend and frontend environment variables.
 - [Architecture](ARCHITECTURE.md): request flow, modules, caching, and storage adapters.

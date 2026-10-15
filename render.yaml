@@ -33,13 +33,23 @@ services:
     branch: main
     autoDeploy: true
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --no-access-log
+    # --proxy-headers --forwarded-allow-ips="*" so request.client / X-Forwarded-For
+    # resolve to the real visitor behind Render's proxy. Without it every request
+    # looks like it came from the proxy and the per-IP rate limiter is useless
+    # (B-04). "*" is safe here: the service is only reachable through Render's LB.
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --no-access-log --proxy-headers --forwarded-allow-ips="*"
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.3
       - key: PIP_DISABLE_PIP_VERSION_CHECK
         value: "1"
+
+      # ── Environment ────────────────────────────────────────────────────
+      # Flips the strict production defaults: refuses mock quotes, hides
+      # /docs, and enforces the OPENAI_API_KEY presence check at boot.
+      - key: ENVIRONMENT
+        value: production
 
       # ── LLM ────────────────────────────────────────────────────────────
       - key: OPENAI_API_KEY
@@ -48,6 +58,12 @@ services:
         value: https://api.openai.com/v1     # swap for DeepSeek / Moonshot / vLLM / etc.
       - key: OPENAI_MODEL
         value: gpt-4o-mini
+      # Keep a hung model call from pinning a worker thread for 10 minutes
+      # (the SDK default) and cap the completion so a runaway can't bill you.
+      - key: LLM_TIMEOUT_SECONDS
+        value: "20"
+      - key: LLM_MAX_TOKENS
+        value: "300"
 
       # ── CORS: must match the deployed frontend origin exactly ──────────
       - key: CORS_ORIGINS
@@ -62,12 +78,30 @@ services:
         sync: false                          # service_role key — NEVER the anon / publishable key
 
       # ── Quote provider ─────────────────────────────────────────────────
-      # yfinance is preferred; backend silently falls back to deterministic
-      # mock data if Yahoo IP-bans the Render egress range.
+      # yfinance is preferred. In production the mock fallback is OFF: a
+      # Yahoo outage surfaces as a 502 rather than silently serving fake
+      # prices, and /api/analyze refuses to persist mock-derived rows.
       - key: STOCK_DATA_PROVIDER
         value: yfinance
+      - key: ALLOW_MOCK_FALLBACK
+        value: "false"
       - key: QUOTE_CACHE_TTL
         value: "30"
+
+      # ── Cost / abuse controls ──────────────────────────────────────────
+      # Analyze hits the paid LLM, so it gets a much tighter budget than the
+      # free quote endpoint. analyze_daily_cap is a hard global ceiling stored
+      # in the DB (survives restarts); set it to 0 to disable.
+      - key: RATE_LIMIT_ANALYZE_PER_MIN
+        value: "6"
+      - key: RATE_LIMIT_QUOTE_PER_MIN
+        value: "60"
+      - key: ANALYZE_DAILY_CAP
+        value: "200"
+
+      # ── API docs ───────────────────────────────────────────────────────
+      - key: ENABLE_API_DOCS
+        value: "false"
 
   # ─── Frontend: static site (Vite build → dist/) ──────────────────────────
   - type: web
@@ -117,3 +151,29 @@ services:
       - path: /*
         name: Permissions-Policy
         value: camera=(), microphone=(), geolocation=()
+      - path: /*
+        name: Cross-Origin-Opener-Policy
+        value: same-origin
+      # CSP for the static shell (F-11). Notes:
+      #   - script-src uses an explicit sha256 of the pre-paint theme script in
+      #     index.html, so no 'unsafe-inline' is needed. IMPORTANT: editing that
+      #     <script> changes the hash — recompute it with:
+      #       node -e "const c=require('crypto'),f=require('fs');const h=f.readFileSync('dist/index.html','utf8').match(/<script>([\s\S]*?)<\/script>/)[1];console.log(\"'sha256-\"+c.createHash('sha256').update(h).digest('base64')+\"'\")"
+      #   - connect-src is pinned to the deployed API origin, so an injected
+      #     script can't exfiltrate to a third party.
+      #   - style/font sources are limited to the Google Fonts hosts we use.
+      # If VITE_API_BASE changes, connect-src must change with it.
+      - path: /*
+        name: Content-Security-Policy
+        value: >-
+          default-src 'self';
+          script-src 'self' 'sha256-kLqVZdfYBxpg1L/bs8o3/ogvOr1E4sjwSYF77oc/4Po=';
+          style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+          font-src 'self' https://fonts.gstatic.com data:;
+          img-src 'self' data:;
+          connect-src 'self' https://stocksight-backend.onrender.com;
+          object-src 'none';
+          base-uri 'none';
+          form-action 'none';
+          frame-ancestors 'none';
+          upgrade-insecure-requests

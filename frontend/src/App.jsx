@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError } from './api'
+import { useI18n } from './i18n'
 import Masthead from './components/Masthead'
 import SearchBar from './components/SearchBar'
 import QuoteCard from './components/QuoteCard'
 import AnalysisCard from './components/AnalysisCard'
 import HistoryPanel from './components/HistoryPanel'
 
+const HISTORY_LIMIT = 20
+
 export default function App({ initialTheme }) {
+  const { t } = useI18n()
   const [theme, setTheme] = useState(initialTheme)
   const [healthy, setHealthy] = useState(null)
 
@@ -21,88 +25,147 @@ export default function App({ initialTheme }) {
 
   const [notice, setNotice] = useState(null)
   const noticeTimer = useRef(null)
+  const quoteRequest = useRef(null) // current AbortController for quote fetches
+  const searchInputRef = useRef(null) // so a failed lookup can return focus (F-10)
+  // The quote/analyze responses are keyed by the symbol they belong to. Any
+  // state write checks this ref so a slow response can never clobber whatever
+  // the user is looking at now (F-01).
+  const currentSymbol = useRef(null)
 
-  const flash = useCallback((text, tone = 'error') => {
-    setNotice({ text, tone, key: Date.now() })
+  const flash = useCallback((message, tone = 'error') => {
+    setNotice({ message, tone, key: Date.now() })
     clearTimeout(noticeTimer.current)
     noticeTimer.current = setTimeout(() => setNotice(null), 6000)
   }, [])
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     setTheme((prev) => {
       const next = prev === 'dark' ? 'light' : 'dark'
-      document.body.classList.toggle('dark', next === 'dark')
-      try { localStorage.setItem('stocksight-theme', next) } catch {}
+      document.documentElement.classList.toggle('dark', next === 'dark')
+      try {
+        localStorage.setItem('stocksight-theme', next)
+      } catch {}
       return next
     })
-  }
+  }, [])
 
-  // Initial health + history fetch
+  const refreshHistory = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) setLoadingHistory(true)
+      try {
+        const data = await api.history(HISTORY_LIMIT)
+        setHistory(data.items || [])
+      } catch (e) {
+        if (silent) return
+        flash(t('error.generic'), 'warn')
+      } finally {
+        if (!silent) setLoadingHistory(false)
+      }
+    },
+    [flash, t],
+  )
+
+  // Initial health + history fetch (health tolerates the cold-start timeout).
   useEffect(() => {
     api.health().then(() => setHealthy(true)).catch(() => setHealthy(false))
     refreshHistory()
+    return () => {
+      quoteRequest.current?.abort()
+      clearTimeout(noticeTimer.current)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const refreshHistory = useCallback(async () => {
-    setLoadingHistory(true)
-    try {
-      const data = await api.history(20)
-      setHistory(data.items || [])
-    } catch (e) {
-      // Non-fatal; show a soft notice
-      flash(`History unavailable: ${e.message}`, 'warn')
-    } finally {
-      setLoadingHistory(false)
-    }
-  }, [flash])
-
   const handleQuote = useCallback(
     async (symbol) => {
+      // Cancel any in-flight quote request, then supersede it.
+      quoteRequest.current?.abort()
+      const ctrl = new AbortController()
+      quoteRequest.current = ctrl
+      currentSymbol.current = symbol
+
       setLoadingQuote(true)
-      setAnalysis(null)
+      setAnalysis(null) // never show an analysis from a different symbol
       setActiveHistoryId(null)
+      setNotice(null)
       try {
-        const data = await api.quote(symbol)
+        const data = await api.quote(symbol, { signal: ctrl.signal })
         setQuote(data)
         setHealthy(true)
       } catch (e) {
-        if (e.name === 'AbortError') return
+        if (e?.name === 'AbortError') return // superseded — ignore silently
         setQuote(null)
+        setAnalysis(null)
         flash(
           e instanceof ApiError && e.status === 0
-            ? 'Cannot reach the backend. Is the FastAPI server running on :8000?'
-            : `Quote failed: ${e.message}`,
+            ? t('error.network')
+            : t('error.quote') + ': ' + (e.message || ''),
         )
         if (e instanceof ApiError && e.status === 0) setHealthy(false)
+        // Put the caret back in the ticker field so retrying is one keypress (F-10).
+        searchInputRef.current?.focus()
       } finally {
-        setLoadingQuote(false)
+        // Only the request that is still current may clear the flag. An older,
+        // superseded fetch's `finally` must not turn loading off while the new
+        // symbol is still in flight (F-01).
+        if (quoteRequest.current === ctrl) setLoadingQuote(false)
       }
     },
-    [flash],
+    [flash, t],
   )
 
   const handleAnalyze = useCallback(async () => {
-    if (!quote) return
+    if (!quote || loadingAnalyze) return // double-click guard (F-01)
+
+    const symbol = quote.symbol
     setLoadingAnalyze(true)
+    setNotice(null)
     try {
-      const data = await api.analyze(quote.symbol, quote)
-      setAnalysis(data)
-      setActiveHistoryId(data.id)
-      refreshHistory()
+      const res = await api.analyze({ symbol, quote_data: quote })
+      // The server persisted it regardless of what the user does next; if they
+      // have moved on, it appears in history rather than under a mismatch.
+      if (currentSymbol.current === symbol) {
+        setAnalysis(res)
+        setActiveHistoryId(res.id)
+      }
+      // Build the new history row locally — the analyze response carries the
+      // id and server created_at, so no extra round-trip is needed (F-04).
+      setHistory((h) =>
+        [
+          {
+            id: res.id,
+            symbol,
+            quote_data: quote,
+            ai_summary: res.summary,
+            sentiment: res.sentiment,
+            risk_level: res.risk_level,
+            created_at: res.created_at,
+          },
+          ...h.filter((x) => x.id !== res.id),
+        ].slice(0, HISTORY_LIMIT),
+      )
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        if (currentSymbol.current === symbol) {
+          setAnalysis(null)
+          return handleQuote(symbol) // quote went stale — silently re-fetch
+        }
+        return
+      }
       flash(
         e instanceof ApiError && e.status === 502
-          ? 'AI analysis failed. The model may be unreachable — please try again.'
-          : `Analyze failed: ${e.message}`,
+          ? t('error.llm')
+          : t('error.analyze') + ': ' + (e.message || ''),
       )
     } finally {
       setLoadingAnalyze(false)
     }
-  }, [quote, refreshHistory, flash])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quote, loadingAnalyze, handleQuote, flash, t])
 
   const handleHistorySelect = useCallback((item) => {
     setQuote(item.quote_data)
+    currentSymbol.current = item.symbol
     setAnalysis({
       id: item.id,
       summary: item.ai_summary,
@@ -111,15 +174,35 @@ export default function App({ initialTheme }) {
       created_at: item.created_at,
     })
     setActiveHistoryId(item.id)
+    setNotice(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
+
+  const handleDataRefresh = useCallback(
+    (e) => {
+      if (e.key === 'r' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+        e.preventDefault()
+        refreshHistory({ silent: true })
+      }
+    },
+    [refreshHistory],
+  )
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleDataRefresh)
+    return () => window.removeEventListener('keydown', handleDataRefresh)
+  }, [handleDataRefresh])
 
   return (
     <div className="min-h-screen px-5 sm:px-8 lg:px-12">
       <div className="max-w-7xl mx-auto">
         <Masthead theme={theme} onToggleTheme={toggleTheme} healthy={healthy} />
 
-        <SearchBar onSubmit={handleQuote} loading={loadingQuote} />
+        <SearchBar
+          onSubmit={handleQuote}
+          loading={loadingQuote}
+          inputRef={searchInputRef}
+        />
 
         {notice && <Notice key={notice.key} notice={notice} onDismiss={() => setNotice(null)} />}
 
@@ -140,7 +223,7 @@ export default function App({ initialTheme }) {
             {analysis && (
               <AnalysisCard
                 analysis={analysis}
-                symbol={quote?.symbol || ''}
+                symbol={quote?.symbol || currentSymbol.current || ''}
                 freshKey={analysis.id || analysis.summary}
               />
             )}
@@ -158,12 +241,9 @@ export default function App({ initialTheme }) {
 
         <footer className="border-t rule mt-6 py-7 text-[11px] tracking-wide text-ink-300 dark:text-ink-100 flex items-center justify-between flex-wrap gap-3">
           <span>
-            <span className="display-italic text-sm">StockSight</span>{' '}
-            · An editorial trading companion · MVP build
+            <span className="display-italic text-sm">StockSight</span> · {t('app.credit')}
           </span>
-          <span className="font-mono uppercase tracking-wider">
-            Not financial advice
-          </span>
+          <span className="font-mono uppercase tracking-wider">{t('app.disclaimer')}</span>
         </footer>
       </div>
     </div>
@@ -171,17 +251,18 @@ export default function App({ initialTheme }) {
 }
 
 function EmptyState() {
+  const { t } = useI18n()
+  const [headline, sub] = t('empty.title').split(' / ')
   return (
     <div className="card animate-fade-in p-10 sm:p-14 text-center">
-      <p className="label-eyebrow">Awaiting Input</p>
+      <p className="label-eyebrow">{t('empty.eyebrow')}</p>
       <h2 className="mt-3 display-italic text-4xl sm:text-5xl text-ink-500 dark:text-ink-50 tracking-tightest leading-tight">
-        Type a ticker.
+        {headline}
         <br />
-        We&rsquo;ll read it for you.
+        {sub}
       </h2>
       <p className="mt-5 max-w-md mx-auto text-ink-400 dark:text-ink-100 leading-relaxed">
-        Live US equity quotes, paired with sober one-sentence AI commentary
-        and a structured sentiment / risk read.
+        {t('empty.body')}
       </p>
     </div>
   )
@@ -218,9 +299,10 @@ function SkeletonAnalysis() {
 }
 
 function Notice({ notice, onDismiss }) {
+  const { t } = useI18n()
   const tone =
     notice.tone === 'warn'
-      ? 'border-gold-500/40 text-gold-500 dark:text-gold-400 bg-gold-500/8'
+      ? 'border-gold-500/40 text-gold-600 dark:text-gold-300 bg-gold-500/8'
       : 'border-oxblood-500/40 text-oxblood-500 dark:text-oxblood-400 bg-oxblood-500/8'
 
   return (
@@ -229,12 +311,12 @@ function Notice({ notice, onDismiss }) {
       className={`mt-4 flex items-start gap-3 border ${tone} px-4 py-3 text-sm animate-fade-up`}
     >
       <span className="display-italic text-base leading-none translate-y-[2px]">!</span>
-      <p className="flex-1">{notice.text}</p>
+      <p className="flex-1">{notice.message}</p>
       <button
         type="button"
         onClick={onDismiss}
         className="opacity-60 hover:opacity-100 font-mono text-xs px-2 focus-ring"
-        aria-label="Dismiss"
+        aria-label={t('notice.dismiss')}
       >
         ✕
       </button>

@@ -26,16 +26,21 @@ export default {
           600: '#0E0E0C',
         },
         oxblood: {
+          300: '#D4776F',
           400: '#A8413D',
           500: '#7A1F1F',
           600: '#5C1414',
         },
         forest: {
+          300: '#4E9C6E',
           400: '#3A8056',
           500: '#1F5C3E',
           600: '#143F2A',
         },
         gold: {
+          // -300 exists so accent *text* clears WCAG AA on the dark ink-600
+          // background, where -400 lands at ~4.0:1 (F-10 contrast).
+          300: '#D9B463',
           400: '#C19E47',
           500: '#A6802C',
           600: '#7D5F1F',

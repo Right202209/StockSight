@@ -30,6 +30,7 @@ npm run dev
 ## 文档
 
 - [文档索引](docs/README.md)
+- [项目全景](docs/PROJECT.md)
 - [API 参考](docs/API.md)
 - [配置说明](docs/CONFIGURATION.md)
 - [架构说明](docs/ARCHITECTURE.md)

@@ -51,6 +51,7 @@ curl 'http://localhost:8000/api/quote?symbol=AAPL'
 ## Documentation
 
 - [Documentation index](docs/README.md)
+- [Project panorama](docs/PROJECT.md)
 - [API reference](docs/API.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Architecture](docs/ARCHITECTURE.md)

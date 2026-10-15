@@ -1,13 +1,30 @@
-import { useEffect, useState } from 'react'
-import { formatLongDate } from '../utils/format'
+import { memo, useEffect, useMemo, useState } from 'react'
+import { useI18n } from '../i18n'
 
-export default function Masthead({ theme, onToggleTheme, healthy }) {
-  const [date, setDate] = useState(() => formatLongDate())
+function Masthead({ theme, onToggleTheme, healthy }) {
+  const { t } = useI18n()
+  const [now, setNow] = useState(() => Date.now())
 
+  // Update the clock year tuples on the next minute boundary, then once a
+  // minute, so the date never lags and we don't tick mid-second (F-06).
   useEffect(() => {
-    const t = setInterval(() => setDate(formatLongDate()), 60_000)
-    return () => clearInterval(t)
+    const tick = () => setNow(Date.now())
+    const delay = 60_000 - (Date.now() % 60_000)
+    const first = setTimeout(tick, delay + 50)
+    const timer = setInterval(tick, 60_000)
+    return () => {
+      clearTimeout(first)
+      clearInterval(timer)
+    }
   }, [])
+
+  const dateLabel = useMemo(() => {
+    const d = new Date(now)
+    return d.toLocaleDateString(
+      undefined,
+      { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' },
+    )
+  }, [now])
 
   return (
     <header className="border-b border-ink-500/15 dark:border-ink-50/15 pt-7 pb-5">
@@ -17,25 +34,26 @@ export default function Masthead({ theme, onToggleTheme, healthy }) {
             StockSight
           </h1>
           <span className="hidden sm:inline label-eyebrow translate-y-[-2px]">
-            AI · Equities
+            {t('app.eyebrow')}
           </span>
         </div>
 
         <div className="flex items-center gap-5 text-[11px] uppercase tracking-[0.18em] text-ink-300 dark:text-ink-100">
-          <span className="hidden md:inline">VOL. I · No. 001</span>
+          <span className="hidden md:inline">{t('app.volume')}</span>
           <span className="font-mono normal-case tracking-normal text-[12px] text-ink-400 dark:text-ink-50">
-            {date}
+            {dateLabel}
           </span>
           <HealthDot healthy={healthy} />
+          <LanguageToggle />
           <ThemeToggle theme={theme} onToggleTheme={onToggleTheme} />
         </div>
       </div>
 
       <div className="mt-5 flex items-baseline gap-6 flex-wrap">
         <p className="font-display italic text-ink-400 dark:text-ink-100 text-lg sm:text-xl tracking-tight max-w-2xl">
-          Read the tape. Hear the AI.
+          {t('app.tagline')}
           <span className="not-italic font-sans text-ink-300 dark:text-ink-100 text-sm ml-3">
-            Real-time quotes, sober commentary, no hype.
+            {t('app.subtitle')}
           </span>
         </p>
       </div>
@@ -44,6 +62,7 @@ export default function Masthead({ theme, onToggleTheme, healthy }) {
 }
 
 function HealthDot({ healthy }) {
+  const { t } = useI18n()
   const tone =
     healthy === true
       ? 'bg-forest-500 dark:bg-forest-400'
@@ -51,7 +70,7 @@ function HealthDot({ healthy }) {
         ? 'bg-oxblood-500 dark:bg-oxblood-400'
         : 'bg-ink-300 dark:bg-ink-100'
   const label =
-    healthy === true ? 'Online' : healthy === false ? 'Offline' : 'Checking…'
+    healthy === true ? t('health.online') : healthy === false ? t('health.offline') : t('health.checking')
 
   return (
     <span
@@ -64,13 +83,28 @@ function HealthDot({ healthy }) {
   )
 }
 
+function LanguageToggle() {
+  const { toggleLang, t } = useI18n()
+  return (
+    <button
+      type="button"
+      onClick={toggleLang}
+      className="focus-ring relative inline-flex items-center justify-center px-2 h-9 border border-ink-500/20 dark:border-ink-50/25 hover:bg-ink-500/5 dark:hover:bg-ink-50/10 transition-colors text-[11px] font-mono text-ink-500 dark:text-ink-50"
+      aria-label={t('lang.aria')}
+    >
+      {t('lang.toggle')}
+    </button>
+  )
+}
+
 function ThemeToggle({ theme, onToggleTheme }) {
+  const { t } = useI18n()
   return (
     <button
       type="button"
       onClick={onToggleTheme}
       className="focus-ring relative inline-flex items-center justify-center w-9 h-9 border border-ink-500/20 dark:border-ink-50/25 hover:bg-ink-500/5 dark:hover:bg-ink-50/10 transition-colors"
-      aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+      aria-label={theme === 'dark' ? t('theme.toLight') : t('theme.toDark')}
     >
       <span className="display-italic text-xl text-ink-500 dark:text-ink-50 leading-none translate-y-[-1px]">
         {theme === 'dark' ? '☼' : '☾'}
@@ -78,3 +112,5 @@ function ThemeToggle({ theme, onToggleTheme }) {
     </button>
   )
 }
+
+export default memo(Masthead)
